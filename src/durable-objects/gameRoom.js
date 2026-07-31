@@ -1,6 +1,9 @@
 const MIN_FUSE_MS = 8000;
 const MAX_FUSE_MS = 25000;
-const GAME_TYPES = ["bomb"];
+const TS_MIN_SECONDS = 10;
+const TS_MAX_SECONDS = 30;
+const TS_TIMEOUT_EXTRA_MS = 10000;
+const GAME_TYPES = ["bomb", "timesense"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -23,6 +26,9 @@ export class GameRoom {
       order: [],
       currentIndex: 0,
       loserId: null,
+      targetSeconds: null,
+      roundStartAt: null,
+      answers: [], // { id, diffSeconds, missed }
     };
   }
 
@@ -70,8 +76,17 @@ export class GameRoom {
       if (participantId === this.data.hostId && this.data.phase !== "closed") {
         this.data.phase = "closed";
         await this.state.storage.deleteAlarm();
-      } else if (this.data.phase === "playing" && this.data.order[this.data.currentIndex] === participantId) {
+      } else if (
+        this.data.gameType === "bomb" &&
+        this.data.phase === "playing" &&
+        this.data.order[this.data.currentIndex] === participantId
+      ) {
         this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
+      } else if (this.data.gameType === "timesense" && this.data.phase === "playing") {
+        if (this.allConnectedAnswered()) {
+          this.data.phase = "result";
+          await this.state.storage.deleteAlarm();
+        }
       }
 
       await this.persist();
@@ -116,16 +131,20 @@ export class GameRoom {
       if (!participantId) return;
 
       if (msg.type === "start" && participantId === this.data.hostId && this.data.phase === "lobby") {
-        if (this.data.participants.length < 2) return;
-        this.data.order = this.data.participants.map((p) => p.id);
-        this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
-        this.data.phase = "playing";
-        this.data.loserId = null;
-        await this.armBomb();
+        if (this.data.gameType === "bomb") {
+          if (this.data.participants.length < 2) return;
+          this.data.order = this.data.participants.map((p) => p.id);
+          this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
+          this.data.phase = "playing";
+          this.data.loserId = null;
+          await this.armBomb();
+        } else if (this.data.gameType === "timesense") {
+          await this.startTimesenseRound();
+        }
         return;
       }
 
-      if (msg.type === "pass" && this.data.phase === "playing") {
+      if (msg.type === "pass" && this.data.gameType === "bomb" && this.data.phase === "playing") {
         const holderId = this.data.order[this.data.currentIndex];
         if (holderId !== participantId) return;
         this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
@@ -134,11 +153,30 @@ export class GameRoom {
         return;
       }
 
-      if (msg.type === "restart" && participantId === this.data.hostId && this.data.phase === "exploded") {
-        this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
-        this.data.phase = "playing";
-        this.data.loserId = null;
-        await this.armBomb();
+      if (msg.type === "react" && this.data.gameType === "timesense" && this.data.phase === "playing") {
+        if (this.data.answers.some((a) => a.id === participantId)) return;
+        const elapsedSeconds = (Date.now() - this.data.roundStartAt) / 1000;
+        const diffSeconds = elapsedSeconds - this.data.targetSeconds;
+        this.data.answers.push({ id: participantId, diffSeconds, missed: false });
+        if (this.allConnectedAnswered()) {
+          this.data.phase = "result";
+          await this.state.storage.deleteAlarm();
+        }
+        await this.persist();
+        await this.syncDirectory();
+        this.broadcast();
+        return;
+      }
+
+      if (msg.type === "restart" && participantId === this.data.hostId) {
+        if (this.data.gameType === "bomb" && this.data.phase === "exploded") {
+          this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
+          this.data.phase = "playing";
+          this.data.loserId = null;
+          await this.armBomb();
+        } else if (this.data.gameType === "timesense" && this.data.phase === "result") {
+          await this.startTimesenseRound();
+        }
         return;
       }
 
@@ -147,6 +185,9 @@ export class GameRoom {
         this.data.order = [];
         this.data.currentIndex = 0;
         this.data.loserId = null;
+        this.data.targetSeconds = null;
+        this.data.roundStartAt = null;
+        this.data.answers = [];
         await this.state.storage.deleteAlarm();
         await this.persist();
         await this.syncDirectory();
@@ -154,6 +195,25 @@ export class GameRoom {
         return;
       }
     });
+  }
+
+  allConnectedAnswered() {
+    const connectedIds = this.data.participants.filter((p) => p.connected).map((p) => p.id);
+    if (!connectedIds.length) return false;
+    const answered = new Set(this.data.answers.map((a) => a.id));
+    return connectedIds.every((id) => answered.has(id));
+  }
+
+  async startTimesenseRound() {
+    this.data.targetSeconds = TS_MIN_SECONDS + Math.floor(Math.random() * (TS_MAX_SECONDS - TS_MIN_SECONDS + 1));
+    this.data.roundStartAt = Date.now();
+    this.data.answers = [];
+    this.data.phase = "playing";
+    const timeoutMs = (this.data.targetSeconds * 1000) + TS_TIMEOUT_EXTRA_MS;
+    await this.state.storage.setAlarm(this.data.roundStartAt + timeoutMs);
+    await this.persist();
+    await this.syncDirectory();
+    this.broadcast();
   }
 
   async armBomb() {
@@ -167,12 +227,30 @@ export class GameRoom {
   async alarm() {
     await this.ready;
     if (this.data.phase !== "playing") return;
-    this.data.phase = "exploded";
-    this.data.loserId = this.data.order[this.data.currentIndex];
-    await this.persist();
-    await this.syncDirectory();
-    await this.reportLoss();
-    this.broadcast();
+
+    if (this.data.gameType === "bomb") {
+      this.data.phase = "exploded";
+      this.data.loserId = this.data.order[this.data.currentIndex];
+      await this.persist();
+      await this.syncDirectory();
+      await this.reportLoss();
+      this.broadcast();
+      return;
+    }
+
+    if (this.data.gameType === "timesense") {
+      const answered = new Set(this.data.answers.map((a) => a.id));
+      for (const p of this.data.participants) {
+        if (p.connected && !answered.has(p.id)) {
+          this.data.answers.push({ id: p.id, diffSeconds: null, missed: true });
+        }
+      }
+      this.data.phase = "result";
+      await this.persist();
+      await this.syncDirectory();
+      this.broadcast();
+      return;
+    }
   }
 
   async reportLoss() {
@@ -190,7 +268,8 @@ export class GameRoom {
   }
 
   broadcast() {
-    const holderId = this.data.phase === "playing" ? this.data.order[this.data.currentIndex] : null;
+    const holderId =
+      this.data.gameType === "bomb" && this.data.phase === "playing" ? this.data.order[this.data.currentIndex] : null;
     for (const [ws, pid] of this.sockets) {
       const payload = {
         type: "state",
@@ -201,10 +280,14 @@ export class GameRoom {
         participants: this.data.participants,
         currentHolderId: holderId,
         loserId: this.data.loserId,
+        targetSeconds: this.data.targetSeconds,
+        roundStartAt: this.data.roundStartAt,
+        answers: this.data.answers,
         you: {
           id: pid,
           isHost: pid === this.data.hostId,
           canPass: this.data.phase === "playing" && holderId === pid,
+          answered: this.data.answers.some((a) => a.id === pid),
         },
       };
       try {
