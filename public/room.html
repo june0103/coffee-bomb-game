@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>폭탄 돌리기</title>
+<title>GoodGame</title>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <style>
   :root {
@@ -115,6 +115,11 @@
     padding: 9px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; flex-shrink: 0;
   }
   .icon-btn:active { background: var(--bg-alt); }
+
+  .game-tag {
+    align-self: flex-start; font-size: 12.5px; font-weight: 600; color: var(--primary);
+    background: var(--ring); padding: 6px 12px; border-radius: 999px;
+  }
 
   /* ---- participant list ---- */
   .section-label {
@@ -239,6 +244,7 @@
 
     <!-- lobby -->
     <section id="lobbyScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
+      <span class="game-tag" id="gameTag"></span>
       <div class="card">
         <p class="section-label">링크 공유</p>
         <div class="share-row">
@@ -303,8 +309,13 @@
   const roomId = location.pathname.split('/r/')[1];
   const storageKey = 'coffee-bomb:' + roomId;
 
+  const GAMES = {
+    bomb: { icon: '💣', name: '폭탄 돌리기' },
+  };
+
   const pageEl = document.getElementById('page');
   const roomTitle = document.getElementById('roomTitle');
+  const gameTag = document.getElementById('gameTag');
   const connBanner = document.getElementById('connBanner');
   const leaveBtn = document.getElementById('leaveBtn');
 
@@ -566,6 +577,9 @@
 
   function applyState(state) {
     roomTitle.textContent = state.name;
+    const gm = GAMES[state.gameType];
+    gameTag.textContent = gm ? gm.icon + ' ' + gm.name : '';
+    document.title = (gm ? gm.name : 'GoodGame') + ' - GoodGame';
     const prevPhase = lastPhase;
 
     nameScreen.classList.toggle('hidden', !!myId);

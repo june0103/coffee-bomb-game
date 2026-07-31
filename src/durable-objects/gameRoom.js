@@ -1,5 +1,6 @@
 const MIN_FUSE_MS = 8000;
 const MAX_FUSE_MS = 25000;
+const GAME_TYPES = ["bomb"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -14,6 +15,7 @@ export class GameRoom {
     this.data = stored || {
       id: null,
       name: "",
+      gameType: "bomb",
       createdAt: Date.now(),
       participants: [], // { id, name, connected }
       hostId: null,
@@ -37,6 +39,7 @@ export class GameRoom {
       if (!this.data.id) {
         this.data.id = body.id;
         this.data.name = body.name;
+        this.data.gameType = GAME_TYPES.includes(body.gameType) ? body.gameType : "bomb";
         this.data.createdAt = Date.now();
         await this.persist();
         // not added to the directory yet — it appears once someone actually joins
@@ -192,6 +195,7 @@ export class GameRoom {
       const payload = {
         type: "state",
         name: this.data.name,
+        gameType: this.data.gameType,
         phase: this.data.phase,
         hostId: this.data.hostId,
         participants: this.data.participants,
@@ -228,6 +232,7 @@ export class GameRoom {
       body: JSON.stringify({
         id: this.data.id,
         name: this.data.name,
+        gameType: this.data.gameType,
         participantCount: connectedCount,
         phase: this.data.phase,
         createdAt: this.data.createdAt,
