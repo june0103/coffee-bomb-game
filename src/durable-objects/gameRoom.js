@@ -10,7 +10,7 @@ const TS_MIN_SECONDS = 10;
 const TS_MAX_SECONDS = 30;
 const TS_TIMEOUT_EXTRA_MS = 10000;
 
-const GAME_TYPES = ["bomb", "reaction", "timesense"];
+const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -36,8 +36,10 @@ export class GameRoom {
       loserId: null,
       targetSeconds: null, // timesense
       roundStartAt: null, // timesense
-      answers: [], // timesense: { id, diffSeconds, missed }
+      answers: [], // timesense: { id, diffSeconds, missed } | stopwatch: { id, digit1, digit2, score }
+      swProgress: {}, // stopwatch: participantId -> { startAt, digit1, digit2 }
     };
+    if (!this.data.swProgress) this.data.swProgress = {};
   }
 
   async persist() {
@@ -90,7 +92,10 @@ export class GameRoom {
         this.data.order[this.data.currentIndex] === participantId
       ) {
         this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
-      } else if (this.data.gameType === "timesense" && this.data.phase === "playing") {
+      } else if (
+        (this.data.gameType === "timesense" || this.data.gameType === "stopwatch") &&
+        this.data.phase === "playing"
+      ) {
         if (this.allConnectedAnswered()) {
           this.data.phase = "result";
           await this.state.storage.deleteAlarm();
@@ -156,6 +161,8 @@ export class GameRoom {
           await this.startReactionRound();
         } else if (this.data.gameType === "timesense") {
           await this.startTimesenseRound();
+        } else if (this.data.gameType === "stopwatch") {
+          await this.startStopwatchRound();
         }
         return;
       }
@@ -202,7 +209,47 @@ export class GameRoom {
           await this.startReactionRound();
         } else if (this.data.gameType === "timesense" && this.data.phase === "result") {
           await this.startTimesenseRound();
+        } else if (this.data.gameType === "stopwatch" && this.data.phase === "result") {
+          await this.startStopwatchRound();
         }
+        return;
+      }
+
+      if (msg.type === "swStart" && this.data.gameType === "stopwatch" && this.data.phase === "playing") {
+        if (this.data.answers.some((a) => a.id === participantId)) return;
+        const progress = this.data.swProgress[participantId] || { startAt: null, digit1: null, digit2: null };
+        if (progress.startAt || (progress.digit1 !== null && progress.digit2 !== null)) return;
+        progress.startAt = Date.now();
+        this.data.swProgress[participantId] = progress;
+        await this.persist();
+        this.broadcast();
+        return;
+      }
+
+      if (msg.type === "swStop" && this.data.gameType === "stopwatch" && this.data.phase === "playing") {
+        const progress = this.data.swProgress[participantId];
+        if (!progress || !progress.startAt) return;
+        const digit = (Date.now() - progress.startAt) % 10;
+        progress.startAt = null;
+        if (progress.digit1 === null) {
+          progress.digit1 = digit;
+        } else if (progress.digit2 === null) {
+          progress.digit2 = digit;
+        } else {
+          return;
+        }
+        this.data.swProgress[participantId] = progress;
+
+        if (progress.digit1 !== null && progress.digit2 !== null) {
+          const score = progress.digit1 * progress.digit2;
+          this.data.answers.push({ id: participantId, digit1: progress.digit1, digit2: progress.digit2, score });
+          if (this.allConnectedAnswered()) {
+            this.data.phase = "result";
+          }
+        }
+        await this.persist();
+        await this.syncDirectory();
+        this.broadcast();
         return;
       }
 
@@ -215,6 +262,7 @@ export class GameRoom {
         this.data.targetSeconds = null;
         this.data.roundStartAt = null;
         this.data.answers = [];
+        this.data.swProgress = {};
         this.data.participants.forEach((p) => {
           p.reactionMs = null;
           p.falseStart = false;
@@ -359,6 +407,17 @@ export class GameRoom {
     this.broadcast();
   }
 
+  // ---------- stopwatch ----------
+
+  async startStopwatchRound() {
+    this.data.phase = "playing";
+    this.data.answers = [];
+    this.data.swProgress = {};
+    await this.persist();
+    await this.syncDirectory();
+    this.broadcast();
+  }
+
   // ---------- shared ----------
 
   async alarm() {
@@ -398,6 +457,7 @@ export class GameRoom {
         this.data.roundParticipantIds.includes(pid) &&
         !!p &&
         p.reactionMs == null;
+      const swProgress = this.data.swProgress[pid];
 
       const payload = {
         type: "state",
@@ -417,6 +477,15 @@ export class GameRoom {
           canPass: this.data.gameType === "bomb" && this.data.phase === "playing" && holderId === pid,
           canReact,
           answered: this.data.answers.some((a) => a.id === pid),
+          sw:
+            this.data.gameType === "stopwatch"
+              ? {
+                  running: !!(swProgress && swProgress.startAt),
+                  digit1: swProgress ? swProgress.digit1 : null,
+                  digit2: swProgress ? swProgress.digit2 : null,
+                  done: this.data.answers.some((a) => a.id === pid),
+                }
+              : null,
         },
       };
       try {
