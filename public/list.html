@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>폭탄 돌리기</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root {
+    --primary: #06f;
+    --primary-strong: #005eeb;
+    --bg: #fff;
+    --bg-alt: #f7f7f8;
+    --bg-elevated: #fff;
+    --label-normal: #171719;
+    --label-neutral: rgba(46, 47, 51, 0.88);
+    --label-alternative: rgba(55, 56, 60, 0.61);
+    --line-solid: #e1e2e4;
+    --line-solid-neutral: #eaebec;
+    --status-positive: #00bf40;
+    --status-positive-bg: rgba(0, 191, 64, 0.1);
+    --status-cautionary: #ff9200;
+    --status-cautionary-bg: rgba(255, 146, 0, 0.12);
+    --status-negative: #ff4242;
+    --status-negative-bg: rgba(255, 66, 66, 0.1);
+    --shadow-small: 0px 2px 4px -2px rgba(23, 23, 25, 0.06), 0px 4px 6px -1px rgba(23, 23, 25, 0.06);
+    --shadow-medium: 0px 4px 6px -2px rgba(23, 23, 25, 0.07), 0px 10px 15px -3px rgba(23, 23, 25, 0.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #3385ff;
+      --primary-strong: #1a75ff;
+      --bg: #1b1c1e;
+      --bg-alt: #0f0f10;
+      --bg-elevated: #212225;
+      --label-normal: #f7f7f8;
+      --label-neutral: rgba(194, 196, 200, 0.88);
+      --label-alternative: rgba(174, 176, 182, 0.61);
+      --line-solid: #37383c;
+      --line-solid-neutral: #333438;
+      --status-positive: #1ed45a;
+      --status-positive-bg: rgba(30, 212, 90, 0.12);
+      --status-cautionary: #ffa938;
+      --status-cautionary-bg: rgba(255, 169, 56, 0.14);
+      --status-negative: #ff6363;
+      --status-negative-bg: rgba(255, 99, 99, 0.12);
+      --shadow-small: 0px 2px 4px -2px rgba(0, 0, 0, 0.35), 0px 4px 6px -1px rgba(0, 0, 0, 0.3);
+      --shadow-medium: 0px 4px 6px -2px rgba(0, 0, 0, 0.4), 0px 10px 15px -3px rgba(0, 0, 0, 0.35);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--label-normal);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", Roboto, "Helvetica Neue", sans-serif;
+    letter-spacing: -0.012em;
+  }
+  .page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 36px 20px calc(48px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  header { display: flex; flex-direction: column; gap: 8px; }
+  .eyebrow {
+    font-size: 13px; line-height: 18px; letter-spacing: 0.01em; font-weight: 600;
+    color: var(--primary);
+  }
+  h1 { margin: 0; font-size: 28px; line-height: 38px; letter-spacing: -0.0236em; font-weight: 700; text-wrap: balance; }
+  .sub { margin: 0; color: var(--label-alternative); font-size: 15px; line-height: 22px; letter-spacing: 0.0096em; }
+
+  .card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-solid-neutral);
+    border-radius: 20px;
+    box-shadow: var(--shadow-small);
+    padding: 20px;
+  }
+
+  .identity-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 16px; border-radius: 14px; background: var(--bg-alt);
+  }
+  .identity-text { font-size: 14px; color: var(--label-neutral); }
+  .identity-text strong { color: var(--label-normal); font-weight: 700; }
+  .identity-btn {
+    background: none; border: none; color: var(--primary); font-weight: 600; font-size: 13.5px;
+    cursor: pointer; padding: 6px; flex-shrink: 0;
+  }
+  .rename-row { display: flex; gap: 8px; }
+  .rename-row input {
+    flex: 1; min-width: 0; padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-normal); font-size: 15px; font-family: inherit;
+  }
+  .rename-row button {
+    padding: 0 18px; border-radius: 12px; border: none; background: var(--primary); color: #fff;
+    font-weight: 600; font-size: 14px; cursor: pointer; flex-shrink: 0;
+  }
+  .hidden { display: none !important; }
+
+  .rank-link {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 13px; border-radius: 14px; text-decoration: none;
+    background: var(--bg-elevated); border: 1px solid var(--line-solid-neutral);
+    color: var(--label-normal); font-weight: 600; font-size: 14.5px;
+    box-shadow: var(--shadow-small);
+  }
+  .rank-link:active { background: var(--bg-alt); }
+
+  .create-row { display: flex; gap: 8px; }
+  #roomName {
+    flex: 1; min-width: 0; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid var(--line-solid); background: var(--bg-alt); color: var(--label-normal);
+    font-size: 16px; font-family: inherit;
+  }
+  button { font-family: inherit; touch-action: manipulation; }
+  #createBtn {
+    padding: 0 20px; border-radius: 12px; border: none;
+    background: var(--primary); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  #createBtn:active { background: var(--primary-strong); }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  .list-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 2px 4px;
+  }
+  .list-head h2 { font-size: 14px; line-height: 20px; margin: 0; color: var(--label-alternative); font-weight: 600; }
+  #refreshBtn { background: none; border: none; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; }
+
+  .room-list { display: flex; flex-direction: column; gap: 10px; }
+  .room-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px; border-radius: 16px; background: var(--bg-elevated);
+    border: 1px solid var(--line-solid-neutral); cursor: pointer; text-align: left;
+    width: 100%; color: var(--label-normal); box-shadow: var(--shadow-small);
+  }
+  .room-card:active { background: var(--bg-alt); }
+  .room-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .room-name { font-weight: 600; font-size: 16px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-meta { font-size: 13px; line-height: 18px; color: var(--label-alternative); }
+  .badge {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .badge.lobby { background: var(--status-positive-bg); color: var(--status-positive); }
+  .badge.playing { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
+  .badge.exploded { background: var(--status-negative-bg); color: var(--status-negative); }
+
+  .empty-state {
+    text-align: center; color: var(--label-alternative); font-size: 14px; padding: 28px 12px;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <span class="eyebrow">GoodGame</span>
+      <h1>💣 폭탄 돌리기</h1>
+      <p class="sub">방을 만들고 링크를 공유하면, 팀원들이 각자 폰으로 들어와서 같이 플레이할 수 있어요.</p>
+    </header>
+
+    <div class="identity-row">
+      <span class="identity-text" id="identityText"></span>
+      <button class="identity-btn" id="identityBtn" type="button"></button>
+    </div>
+    <div class="rename-row hidden" id="renameRow">
+      <input id="renameInput" type="text" maxlength="12" autocomplete="off" placeholder="이름 (최대 12자)" />
+      <button id="renameSaveBtn" type="button">저장</button>
+    </div>
+
+    <a class="rank-link" href="/ranking">🏆 이주의 후원자 보기</a>
+
+    <section class="card">
+      <div class="create-row">
+        <input id="roomName" type="text" placeholder="방 이름 (예: 1팀 점심내기)" maxlength="30" autocomplete="off" />
+        <button id="createBtn" type="button">방 만들기</button>
+      </div>
+    </section>
+
+    <div class="list-head">
+      <h2>진행 중인 방</h2>
+      <button id="refreshBtn" type="button">새로고침</button>
+    </div>
+    <div class="room-list" id="roomList">
+      <p class="empty-state">아직 열린 방이 없어요. 위에서 새 방을 만들어보세요.</p>
+    </div>
+  </div>
+
+<script>
+  const roomNameInput = document.getElementById('roomName');
+  const createBtn = document.getElementById('createBtn');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const roomList = document.getElementById('roomList');
+
+  const IDENTITY_KEY = 'coffee-bomb:identity';
+  function loadIdentity() {
+    try { return JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch { return null; }
+  }
+  function saveIdentity(deviceId, name) {
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({ deviceId, name }));
+  }
+  let identity = loadIdentity();
+  if (!identity || !identity.deviceId) {
+    identity = { deviceId: crypto.randomUUID(), name: (identity && identity.name) || '' };
+    saveIdentity(identity.deviceId, identity.name);
+  }
+
+  const identityText = document.getElementById('identityText');
+  const identityBtn = document.getElementById('identityBtn');
+  const renameRow = document.getElementById('renameRow');
+  const renameInput = document.getElementById('renameInput');
+  const renameSaveBtn = document.getElementById('renameSaveBtn');
+
+  function renderIdentity() {
+    identityText.textContent = '';
+    if (identity.name) {
+      const strong = document.createElement('strong');
+      strong.textContent = identity.name;
+      identityText.append(strong, '님으로 참여해요');
+      identityBtn.textContent = '이름 변경';
+    } else {
+      identityText.textContent = '아직 이름을 설정하지 않았어요';
+      identityBtn.textContent = '이름 설정';
+    }
+  }
+  renderIdentity();
+
+  identityBtn.addEventListener('click', () => {
+    renameInput.value = identity.name || '';
+    renameRow.classList.toggle('hidden');
+    if (!renameRow.classList.contains('hidden')) renameInput.focus();
+  });
+  function saveRename() {
+    const name = renameInput.value.trim();
+    if (!name) return;
+    identity.name = name;
+    saveIdentity(identity.deviceId, name);
+    renderIdentity();
+    renameRow.classList.add('hidden');
+  }
+  renameSaveBtn.addEventListener('click', saveRename);
+  renameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
+  });
+
+  const PHASE_LABEL = { lobby: '대기중', playing: '진행중', exploded: '폭발!' };
+
+  async function createRoom() {
+    const name = roomNameInput.value.trim();
+    createBtn.disabled = true;
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      location.href = '/r/' + data.id;
+    } catch (e) {
+      createBtn.disabled = false;
+      alert('방을 만들지 못했어요. 다시 시도해주세요.');
+    }
+  }
+
+  createBtn.addEventListener('click', createRoom);
+  roomNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); createRoom(); }
+  });
+
+  function renderRooms(rooms) {
+    if (!rooms.length) {
+      roomList.innerHTML = '<p class="empty-state">아직 열린 방이 없어요. 위에서 새 방을 만들어보세요.</p>';
+      return;
+    }
+    roomList.innerHTML = '';
+    rooms.forEach((room) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'room-card';
+      card.innerHTML =
+        '<span class="room-info">' +
+          '<span class="room-name"></span>' +
+          '<span class="room-meta"></span>' +
+        '</span>' +
+        '<span class="badge ' + room.phase + '"></span>';
+      card.querySelector('.room-name').textContent = room.name;
+      card.querySelector('.room-meta').textContent = room.participantCount + '명 참여중';
+      card.querySelector('.badge').textContent = PHASE_LABEL[room.phase] || room.phase;
+      card.addEventListener('click', () => { location.href = '/r/' + room.id; });
+      roomList.appendChild(card);
+    });
+  }
+
+  async function loadRooms() {
+    try {
+      const res = await fetch('/api/rooms');
+      const data = await res.json();
+      renderRooms(data.rooms || []);
+    } catch (e) {
+      // keep last known list on transient errors
+    }
+  }
+
+  refreshBtn.addEventListener('click', loadRooms);
+  loadRooms();
+  setInterval(loadRooms, 4000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadRooms(); });
+  window.addEventListener('pageshow', (event) => { if (event.persisted) loadRooms(); });
+</script>
+</body>
+</html>

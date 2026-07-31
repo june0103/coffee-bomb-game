@@ -1,0 +1,28 @@
+name = "coffee-bomb-game"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "Directory"
+
+[[durable_objects.bindings]]
+name = "LEADERBOARD"
+class_name = "Leaderboard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom", "Directory"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Leaderboard"]
