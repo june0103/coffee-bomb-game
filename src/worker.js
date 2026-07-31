@@ -52,11 +52,12 @@ export default {
     if (pathname === "/api/rooms" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       const name = (body.name || "").toString().trim().slice(0, 30) || "이름 없는 방";
+      const gameType = (body.gameType || "").toString();
       const id = randomRoomId();
       const room = env.GAME_ROOM.get(env.GAME_ROOM.idFromName(id));
       await room.fetch("https://room/init", {
         method: "POST",
-        body: JSON.stringify({ id, name }),
+        body: JSON.stringify({ id, name, gameType }),
       });
       return json({ id });
     }
