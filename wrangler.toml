@@ -1,6 +1,7 @@
 name = "coffee-bomb-game"
 main = "src/worker.js"
 compatibility_date = "2025-01-01"
+account_id = "b98c8546d9c49aeefa9648c497d80a88"
 
 [[rules]]
 type = "Text"
