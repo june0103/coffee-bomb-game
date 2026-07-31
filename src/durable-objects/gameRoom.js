@@ -1,6 +1,12 @@
 const MIN_FUSE_MS = 8000;
 const MAX_FUSE_MS = 25000;
-const GAME_TYPES = ["bomb"];
+
+const REACTION_MIN_DELAY_MS = 2000;
+const REACTION_MAX_DELAY_MS = 6000;
+const REACTION_TIMEOUT_MS = 8000; // grace period after green before stragglers are force-finished
+const REACTION_PENALTY_MS = 99999; // sentinel for a false start or a no-click — guaranteed "slowest"
+
+const GAME_TYPES = ["bomb", "reaction"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -17,11 +23,12 @@ export class GameRoom {
       name: "",
       gameType: "bomb",
       createdAt: Date.now(),
-      participants: [], // { id, name, connected }
+      participants: [], // { id, name, connected, deviceId, reactionMs?, falseStart? }
       hostId: null,
-      phase: "lobby", // lobby | playing | exploded | closed
-      order: [],
-      currentIndex: 0,
+      phase: "lobby", // lobby | playing | exploded | armed | green | finished | closed
+      order: [], // bomb: turn order
+      currentIndex: 0, // bomb: whose turn
+      roundParticipantIds: [], // reaction: who's in this round
       loserId: null,
     };
   }
@@ -77,6 +84,10 @@ export class GameRoom {
       await this.persist();
       await this.syncDirectory();
       this.broadcast();
+
+      if (this.data.phase === "armed" || this.data.phase === "green") {
+        if (this.isReactionRoundComplete()) await this.finishReaction();
+      }
     };
 
     ws.addEventListener("close", onClose);
@@ -116,16 +127,20 @@ export class GameRoom {
       if (!participantId) return;
 
       if (msg.type === "start" && participantId === this.data.hostId && this.data.phase === "lobby") {
-        if (this.data.participants.length < 2) return;
-        this.data.order = this.data.participants.map((p) => p.id);
-        this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
-        this.data.phase = "playing";
-        this.data.loserId = null;
-        await this.armBomb();
+        if (this.data.participants.filter((p) => p.connected).length < 2) return;
+        if (this.data.gameType === "reaction") {
+          await this.startReactionRound();
+        } else {
+          this.data.order = this.data.participants.map((p) => p.id);
+          this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
+          this.data.phase = "playing";
+          this.data.loserId = null;
+          await this.armBomb();
+        }
         return;
       }
 
-      if (msg.type === "pass" && this.data.phase === "playing") {
+      if (msg.type === "pass" && this.data.gameType === "bomb" && this.data.phase === "playing") {
         const holderId = this.data.order[this.data.currentIndex];
         if (holderId !== participantId) return;
         this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
@@ -134,11 +149,23 @@ export class GameRoom {
         return;
       }
 
-      if (msg.type === "restart" && participantId === this.data.hostId && this.data.phase === "exploded") {
-        this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
-        this.data.phase = "playing";
-        this.data.loserId = null;
-        await this.armBomb();
+      if (msg.type === "react" && this.data.gameType === "reaction") {
+        if (!this.registerReaction(participantId)) return;
+        await this.persist();
+        this.broadcast();
+        if (this.isReactionRoundComplete()) await this.finishReaction();
+        return;
+      }
+
+      if (msg.type === "restart" && participantId === this.data.hostId) {
+        if (this.data.gameType === "reaction" && this.data.phase === "finished") {
+          await this.startReactionRound();
+        } else if (this.data.gameType === "bomb" && this.data.phase === "exploded") {
+          this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
+          this.data.phase = "playing";
+          this.data.loserId = null;
+          await this.armBomb();
+        }
         return;
       }
 
@@ -146,7 +173,12 @@ export class GameRoom {
         this.data.phase = "lobby";
         this.data.order = [];
         this.data.currentIndex = 0;
+        this.data.roundParticipantIds = [];
         this.data.loserId = null;
+        this.data.participants.forEach((p) => {
+          p.reactionMs = null;
+          p.falseStart = false;
+        });
         await this.state.storage.deleteAlarm();
         await this.persist();
         await this.syncDirectory();
@@ -156,6 +188,8 @@ export class GameRoom {
     });
   }
 
+  // ---------- bomb ----------
+
   async armBomb() {
     const duration = MIN_FUSE_MS + Math.random() * (MAX_FUSE_MS - MIN_FUSE_MS);
     await this.state.storage.setAlarm(Date.now() + duration);
@@ -164,8 +198,7 @@ export class GameRoom {
     this.broadcast();
   }
 
-  async alarm() {
-    await this.ready;
+  async alarmBomb() {
     if (this.data.phase !== "playing") return;
     this.data.phase = "exploded";
     this.data.loserId = this.data.order[this.data.currentIndex];
@@ -173,6 +206,93 @@ export class GameRoom {
     await this.syncDirectory();
     await this.reportLoss();
     this.broadcast();
+  }
+
+  // ---------- reaction ----------
+
+  async startReactionRound() {
+    this.data.roundParticipantIds = this.data.participants.filter((p) => p.connected).map((p) => p.id);
+    this.data.participants.forEach((p) => {
+      p.reactionMs = null;
+      p.falseStart = false;
+    });
+    this.data.loserId = null;
+    this.data.phase = "armed";
+    const delay = REACTION_MIN_DELAY_MS + Math.random() * (REACTION_MAX_DELAY_MS - REACTION_MIN_DELAY_MS);
+    await this.state.storage.setAlarm(Date.now() + delay);
+    await this.persist();
+    await this.syncDirectory();
+    this.broadcast();
+  }
+
+  registerReaction(participantId) {
+    if (this.data.phase !== "armed" && this.data.phase !== "green") return false;
+    if (!this.data.roundParticipantIds.includes(participantId)) return false;
+    const p = this.data.participants.find((pp) => pp.id === participantId);
+    if (!p || p.reactionMs != null) return false;
+
+    if (this.data.phase === "armed") {
+      p.falseStart = true;
+      p.reactionMs = REACTION_PENALTY_MS;
+    } else {
+      p.reactionMs = Date.now() - this.data.greenAt;
+    }
+    return true;
+  }
+
+  isReactionRoundComplete() {
+    return this.data.roundParticipantIds.every((id) => {
+      const p = this.data.participants.find((pp) => pp.id === id);
+      return !p || !p.connected || p.reactionMs != null;
+    });
+  }
+
+  async alarmReaction() {
+    if (this.data.phase === "armed") {
+      this.data.phase = "green";
+      this.data.greenAt = Date.now();
+      await this.state.storage.setAlarm(Date.now() + REACTION_TIMEOUT_MS);
+      await this.persist();
+      await this.syncDirectory();
+      this.broadcast();
+    } else if (this.data.phase === "green") {
+      await this.finishReaction();
+    }
+  }
+
+  async finishReaction() {
+    if (this.data.phase !== "armed" && this.data.phase !== "green") return;
+    await this.state.storage.deleteAlarm();
+    this.data.phase = "finished";
+
+    let worstId = null;
+    let worstMs = -Infinity;
+    for (const id of this.data.roundParticipantIds) {
+      const p = this.data.participants.find((pp) => pp.id === id);
+      if (!p) continue;
+      const ms = p.reactionMs != null ? p.reactionMs : REACTION_PENALTY_MS;
+      if (ms > worstMs) {
+        worstMs = ms;
+        worstId = id;
+      }
+    }
+    this.data.loserId = worstId;
+
+    await this.persist();
+    await this.syncDirectory();
+    await this.reportLoss();
+    this.broadcast();
+  }
+
+  // ---------- shared ----------
+
+  async alarm() {
+    await this.ready;
+    if (this.data.gameType === "reaction") {
+      await this.alarmReaction();
+    } else {
+      await this.alarmBomb();
+    }
   }
 
   async reportLoss() {
@@ -190,8 +310,18 @@ export class GameRoom {
   }
 
   broadcast() {
-    const holderId = this.data.phase === "playing" ? this.data.order[this.data.currentIndex] : null;
+    const holderId =
+      this.data.gameType === "bomb" && this.data.phase === "playing" ? this.data.order[this.data.currentIndex] : null;
+
     for (const [ws, pid] of this.sockets) {
+      const p = this.data.participants.find((pp) => pp.id === pid);
+      const canReact =
+        this.data.gameType === "reaction" &&
+        (this.data.phase === "armed" || this.data.phase === "green") &&
+        this.data.roundParticipantIds.includes(pid) &&
+        !!p &&
+        p.reactionMs == null;
+
       const payload = {
         type: "state",
         name: this.data.name,
@@ -204,7 +334,8 @@ export class GameRoom {
         you: {
           id: pid,
           isHost: pid === this.data.hostId,
-          canPass: this.data.phase === "playing" && holderId === pid,
+          canPass: this.data.gameType === "bomb" && this.data.phase === "playing" && holderId === pid,
+          canReact,
         },
       };
       try {

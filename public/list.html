@@ -163,8 +163,8 @@
     white-space: nowrap; flex-shrink: 0;
   }
   .badge.lobby { background: var(--status-positive-bg); color: var(--status-positive); }
-  .badge.playing { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
-  .badge.exploded { background: var(--status-negative-bg); color: var(--status-negative); }
+  .badge.active { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
+  .badge.done { background: var(--status-negative-bg); color: var(--status-negative); }
 
   .empty-state {
     text-align: center; color: var(--label-alternative); font-size: 14px; padding: 28px 12px;
@@ -264,10 +264,20 @@
     if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
   });
 
-  const PHASE_LABEL = { lobby: '대기중', playing: '진행중', exploded: '폭발!' };
+  const PHASE_CATEGORY = { lobby: 'lobby', closed: 'done' };
+  const PHASE_LABEL = { lobby: '대기중', closed: '종료' };
+
+  function phaseCategory(phase) {
+    return PHASE_CATEGORY[phase] || 'active';
+  }
+  function phaseLabel(phase) {
+    if (PHASE_LABEL[phase]) return PHASE_LABEL[phase];
+    return phaseCategory(phase) === 'done' ? '종료' : '진행중';
+  }
 
   const GAMES = [
     { id: 'bomb', icon: '💣', name: '폭탄 돌리기', desc: '터질 때 들고 있으면 아웃, 언제 터질지는 아무도 몰라요' },
+    { id: 'reaction', icon: '⚡', name: '반응속도 게임', desc: '초록색으로 바뀌는 순간 클릭, 제일 늦은 사람이 아웃' },
   ];
 
   const gamePicker = document.getElementById('gamePicker');
@@ -332,12 +342,12 @@
           '<span class="room-name"></span>' +
           '<span class="room-meta"></span>' +
         '</span>' +
-        '<span class="badge ' + room.phase + '"></span>';
+        '<span class="badge ' + phaseCategory(room.phase) + '"></span>';
       const meta = gameMeta(room.gameType);
       card.querySelector('.room-name').textContent = room.name;
       card.querySelector('.room-meta').textContent =
         (meta ? meta.icon + ' ' + meta.name + ' · ' : '') + room.participantCount + '명 참여중';
-      card.querySelector('.badge').textContent = PHASE_LABEL[room.phase] || room.phase;
+      card.querySelector('.badge').textContent = phaseLabel(room.phase);
       card.addEventListener('click', () => { location.href = '/r/' + room.id; });
       roomList.appendChild(card);
     });
