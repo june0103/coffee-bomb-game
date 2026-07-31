@@ -264,11 +264,13 @@
     if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
   });
 
-  const PHASE_CATEGORY = { lobby: 'lobby', closed: 'done' };
   const PHASE_LABEL = { lobby: '대기중', closed: '종료' };
+  const DONE_PHASES = new Set(['exploded', 'finished', 'result', 'closed']);
 
   function phaseCategory(phase) {
-    return PHASE_CATEGORY[phase] || 'active';
+    if (phase === 'lobby') return 'lobby';
+    if (DONE_PHASES.has(phase)) return 'done';
+    return 'active';
   }
   function phaseLabel(phase) {
     if (PHASE_LABEL[phase]) return PHASE_LABEL[phase];
@@ -278,6 +280,7 @@
   const GAMES = [
     { id: 'bomb', icon: '💣', name: '폭탄 돌리기', desc: '터질 때 들고 있으면 아웃, 언제 터질지는 아무도 몰라요' },
     { id: 'reaction', icon: '⚡', name: '반응속도 게임', desc: '초록색으로 바뀌는 순간 클릭, 제일 늦은 사람이 아웃' },
+    { id: 'timesense', icon: '⏱️', name: '시간 감각 게임', desc: 'N초를 외우고 감으로 맞혀보세요, 오차가 적을수록 승리' },
   ];
 
   const gamePicker = document.getElementById('gamePicker');
