@@ -165,6 +165,7 @@
   .badge.lobby { background: var(--status-positive-bg); color: var(--status-positive); }
   .badge.playing { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
   .badge.exploded { background: var(--status-negative-bg); color: var(--status-negative); }
+  .badge.result { background: rgba(0, 102, 255, 0.1); color: var(--primary); }
 
   .empty-state {
     text-align: center; color: var(--label-alternative); font-size: 14px; padding: 28px 12px;
@@ -264,10 +265,11 @@
     if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
   });
 
-  const PHASE_LABEL = { lobby: '대기중', playing: '진행중', exploded: '폭발!' };
+  const PHASE_LABEL = { lobby: '대기중', playing: '진행중', exploded: '폭발!', result: '결과 확인중' };
 
   const GAMES = [
     { id: 'bomb', icon: '💣', name: '폭탄 돌리기', desc: '터질 때 들고 있으면 아웃, 언제 터질지는 아무도 몰라요' },
+    { id: 'timesense', icon: '⏱️', name: '시간 감각 게임', desc: 'N초를 외우고 감으로 맞혀보세요, 오차가 적을수록 승리' },
   ];
 
   const gamePicker = document.getElementById('gamePicker');
