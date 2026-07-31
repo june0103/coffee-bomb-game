@@ -79,3 +79,10 @@ npm run deploy
 ```
 
 배포 시 `wrangler.toml`에 정의된 `GameRoom`, `Directory`, `Leaderboard` Durable Object 바인딩이 함께 적용됩니다.
+
+## 팀 작업 분담
+
+| 담당자 | 역할 | 주요 작업 |
+| --- | --- | --- |
+| **고 준** | Cloudflare Workers / Durable Objects | `gameRoom.js` 게임 로직 구현 (폭탄, 반응속도), `directory.js` 방 목록 관리, WebSocket 브로드캐스트 설계, `leaderboard.js` 랭킹 집계 로직, Cloudflare Workers 배포 설정(`wrangler.toml`, GitHub Actions) |
+| **조현우** | 프론트엔드 | `room.html`, `list.html`, `ranking.html` UI 구현, 콩콩팥팥(스톱워치)·시간감각 게임 로직 |
