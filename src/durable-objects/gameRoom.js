@@ -255,24 +255,38 @@ export class GameRoom {
 
       if (msg.type === "backToLobby" && participantId === this.data.hostId) {
         this.data.phase = "lobby";
-        this.data.order = [];
-        this.data.currentIndex = 0;
-        this.data.roundParticipantIds = [];
-        this.data.loserId = null;
-        this.data.targetSeconds = null;
-        this.data.roundStartAt = null;
-        this.data.answers = [];
-        this.data.swProgress = {};
-        this.data.participants.forEach((p) => {
-          p.reactionMs = null;
-          p.falseStart = false;
-        });
+        this.resetRoundState();
         await this.state.storage.deleteAlarm();
         await this.persist();
         await this.syncDirectory();
         this.broadcast();
         return;
       }
+
+      if (msg.type === "changeGame" && participantId === this.data.hostId && this.data.phase === "lobby") {
+        if (!GAME_TYPES.includes(msg.gameType) || msg.gameType === this.data.gameType) return;
+        this.data.gameType = msg.gameType;
+        this.resetRoundState();
+        await this.persist();
+        await this.syncDirectory();
+        this.broadcast();
+        return;
+      }
+    });
+  }
+
+  resetRoundState() {
+    this.data.order = [];
+    this.data.currentIndex = 0;
+    this.data.roundParticipantIds = [];
+    this.data.loserId = null;
+    this.data.targetSeconds = null;
+    this.data.roundStartAt = null;
+    this.data.answers = [];
+    this.data.swProgress = {};
+    this.data.participants.forEach((p) => {
+      p.reactionMs = null;
+      p.falseStart = false;
     });
   }
 

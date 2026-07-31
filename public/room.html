@@ -121,6 +121,17 @@
     background: var(--ring); padding: 6px 12px; border-radius: 999px;
   }
 
+  /* ---- lobby game picker (host only) ---- */
+  .game-picker { display: flex; flex-direction: column; gap: 8px; }
+  .game-option {
+    display: flex; align-items: center; gap: 12px; text-align: left; width: 100%;
+    padding: 12px 14px; border-radius: 14px; background: var(--bg-alt);
+    border: 1px solid transparent; cursor: pointer; color: var(--label-normal); font-family: inherit;
+  }
+  .game-option.selected { background: var(--ring); border-color: var(--primary); }
+  .game-icon { font-size: 22px; flex-shrink: 0; }
+  .game-name { font-weight: 600; font-size: 14.5px; }
+
   /* ---- participant list ---- */
   .section-label {
     font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-alternative);
@@ -317,6 +328,10 @@
     <!-- lobby -->
     <section id="lobbyScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
       <span class="game-tag" id="gameTag"></span>
+      <div class="card hidden" id="gameChangeCard">
+        <p class="section-label">게임 변경</p>
+        <div class="game-picker" id="gamePicker"></div>
+      </div>
       <div class="card">
         <p class="section-label">링크 공유</p>
         <div class="share-row">
@@ -466,6 +481,8 @@
   }
 
   const lobbyScreen = document.getElementById('lobbyScreen');
+  const gameChangeCard = document.getElementById('gameChangeCard');
+  const gamePicker = document.getElementById('gamePicker');
   const shareLink = document.getElementById('shareLink');
   const copyBtn = document.getElementById('copyBtn');
   const shareBtn = document.getElementById('shareBtn');
@@ -629,6 +646,24 @@
     shareBtn.classList.remove('hidden');
     shareBtn.addEventListener('click', () => {
       navigator.share({ title: '폭탄 돌리기', url: shareLink.textContent }).catch(() => {});
+    });
+  }
+
+  const GAME_ORDER = ['bomb', 'reaction', 'timesense', 'stopwatch'];
+  function renderGamePicker(state) {
+    gamePicker.innerHTML = '';
+    GAME_ORDER.forEach((id) => {
+      const g = GAMES[id];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'game-option' + (id === state.gameType ? ' selected' : '');
+      btn.innerHTML = '<span class="game-icon"></span><span class="game-name"></span>';
+      btn.querySelector('.game-icon').textContent = g.icon;
+      btn.querySelector('.game-name').textContent = g.name;
+      btn.addEventListener('click', () => {
+        if (id !== state.gameType) send({ type: 'changeGame', gameType: id });
+      });
+      gamePicker.appendChild(btn);
     });
   }
 
@@ -922,9 +957,12 @@
         startBtn.classList.remove('hidden');
         startBtn.disabled = connected.length < (state.gameType === 'timesense' ? 1 : 2);
         waitNote.classList.add('hidden');
+        gameChangeCard.classList.remove('hidden');
+        renderGamePicker(state);
       } else {
         startBtn.classList.add('hidden');
         waitNote.classList.remove('hidden');
+        gameChangeCard.classList.add('hidden');
       }
     } else if (state.gameType === 'timesense' && state.phase === 'playing') {
       tsGameScreen.classList.remove('hidden');
