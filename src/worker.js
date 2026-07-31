@@ -2,6 +2,8 @@ import listHtml from "../public/list.html";
 import roomHtml from "../public/room.html";
 import rankingHtml from "../public/ranking.html";
 
+//.gg
+
 export { GameRoom } from "./durable-objects/gameRoom.js";
 export { Directory } from "./durable-objects/directory.js";
 export { Leaderboard } from "./durable-objects/leaderboard.js";
