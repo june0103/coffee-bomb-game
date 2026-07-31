@@ -160,8 +160,10 @@ export class GameRoom {
           if (connectedCount < 2) return;
           await this.startReactionRound();
         } else if (this.data.gameType === "timesense") {
+          if (connectedCount < 2) return;
           await this.startTimesenseRound();
         } else if (this.data.gameType === "stopwatch") {
+          if (connectedCount < 2) return;
           await this.startStopwatchRound();
         }
         return;
