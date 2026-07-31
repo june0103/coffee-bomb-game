@@ -163,9 +163,8 @@
     white-space: nowrap; flex-shrink: 0;
   }
   .badge.lobby { background: var(--status-positive-bg); color: var(--status-positive); }
-  .badge.playing { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
-  .badge.exploded { background: var(--status-negative-bg); color: var(--status-negative); }
-  .badge.result { background: rgba(0, 102, 255, 0.1); color: var(--primary); }
+  .badge.active { background: var(--status-cautionary-bg); color: var(--status-cautionary); }
+  .badge.done { background: var(--status-negative-bg); color: var(--status-negative); }
 
   .empty-state {
     text-align: center; color: var(--label-alternative); font-size: 14px; padding: 28px 12px;
@@ -265,10 +264,22 @@
     if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
   });
 
-  const PHASE_LABEL = { lobby: '대기중', playing: '진행중', exploded: '폭발!', result: '결과 확인중' };
+  const PHASE_LABEL = { lobby: '대기중', closed: '종료' };
+  const DONE_PHASES = new Set(['exploded', 'finished', 'result', 'closed']);
+
+  function phaseCategory(phase) {
+    if (phase === 'lobby') return 'lobby';
+    if (DONE_PHASES.has(phase)) return 'done';
+    return 'active';
+  }
+  function phaseLabel(phase) {
+    if (PHASE_LABEL[phase]) return PHASE_LABEL[phase];
+    return phaseCategory(phase) === 'done' ? '종료' : '진행중';
+  }
 
   const GAMES = [
     { id: 'bomb', icon: '💣', name: '폭탄 돌리기', desc: '터질 때 들고 있으면 아웃, 언제 터질지는 아무도 몰라요' },
+    { id: 'reaction', icon: '⚡', name: '반응속도 게임', desc: '초록색으로 바뀌는 순간 클릭, 제일 늦은 사람이 아웃' },
     { id: 'timesense', icon: '⏱️', name: '시간 감각 게임', desc: 'N초를 외우고 감으로 맞혀보세요, 오차가 적을수록 승리' },
     { id: 'stopwatch', icon: '🫘', name: '콩콩팥팥', desc: '스톱워치 2번, 마지막 숫자를 곱해서 최고점이 승리' },
   ];
@@ -335,12 +346,12 @@
           '<span class="room-name"></span>' +
           '<span class="room-meta"></span>' +
         '</span>' +
-        '<span class="badge ' + room.phase + '"></span>';
+        '<span class="badge ' + phaseCategory(room.phase) + '"></span>';
       const meta = gameMeta(room.gameType);
       card.querySelector('.room-name').textContent = room.name;
       card.querySelector('.room-meta').textContent =
         (meta ? meta.icon + ' ' + meta.name + ' · ' : '') + room.participantCount + '명 참여중';
-      card.querySelector('.badge').textContent = PHASE_LABEL[room.phase] || room.phase;
+      card.querySelector('.badge').textContent = phaseLabel(room.phase);
       card.addEventListener('click', () => { location.href = '/r/' + room.id; });
       roomList.appendChild(card);
     });

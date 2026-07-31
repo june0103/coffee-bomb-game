@@ -191,6 +191,27 @@
   #passBtn:active { transform: scale(0.98); }
   .key-hint { font-size: 12px; color: var(--label-alternative); }
 
+  /* ---- reaction game ---- */
+  .reaction-card {
+    width: 100%; min-height: 320px; border: none; border-radius: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    cursor: pointer; background: var(--bg-alt); transition: background 0.15s ease; padding: 24px; text-align: center;
+    font-family: inherit;
+  }
+  .reaction-card.armed { background: var(--status-negative-bg); }
+  .reaction-card.go { background: var(--status-positive); }
+  .reaction-card.go .reaction-headline, .reaction-card.go .reaction-sub { color: #fff; }
+  .reaction-card.locked { cursor: default; opacity: 0.7; }
+  .reaction-headline { font-size: 22px; font-weight: 800; }
+  .reaction-sub { font-size: 14px; color: var(--label-alternative); }
+  @media (prefers-reduced-motion: no-preference) {
+    .reaction-card.armed { animation: armedPulse 1.4s ease-in-out infinite; }
+  }
+  @keyframes armedPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.015); }
+  }
+
   /* ---- time sense game ---- */
   .ts-number { font-size: 64px; font-weight: 800; line-height: 1; margin: 6px 0; }
   #tsReactBtn {
@@ -258,6 +279,15 @@
   }
   .result-name { font-size: 24px; line-height: 32px; font-weight: 700; margin: 10px 0 4px; text-wrap: balance; }
   .result-sub { color: var(--label-alternative); font-size: 14px; line-height: 20px; margin-bottom: 4px; }
+  .result-times { width: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 14px; text-align: left; }
+  .time-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 12px; border-radius: 10px; background: var(--bg-alt); font-size: 13.5px;
+  }
+  .time-row .time-name { font-weight: 600; }
+  .time-row .time-ms { color: var(--label-alternative); font-variant-numeric: tabular-nums; }
+  .time-row.worst { background: var(--status-negative-bg); }
+  .time-row.worst .time-ms { color: var(--status-negative); font-weight: 700; }
   .result-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 18px; }
   .result-actions button {
     padding: 14px; border-radius: 12px; border: none; font-weight: 600; font-size: 14.5px; cursor: pointer;
@@ -303,7 +333,7 @@
       </div>
     </section>
 
-    <!-- playing -->
+    <!-- playing: bomb -->
     <section id="gameScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
       <div class="card">
         <p class="section-label" id="gameParticipantLabel">참가자</p>
@@ -321,6 +351,14 @@
       </div>
     </section>
 
+    <!-- playing: reaction -->
+    <section id="reactionScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
+      <button type="button" id="reactionCard" class="reaction-card">
+        <span class="reaction-headline" id="reactionHeadline">-</span>
+        <span class="reaction-sub" id="reactionSub"></span>
+      </button>
+    </section>
+
     <!-- playing: time sense -->
     <section id="tsGameScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
       <div class="card stage-card">
@@ -329,6 +367,19 @@
         <button id="tsReactBtn" type="button" class="hidden">지금이에요!</button>
         <p class="wait-note hidden" id="tsWaitNote">제출 완료! 다른 사람을 기다리는 중…</p>
       </div>
+    </section>
+
+    <!-- result: bomb / reaction -->
+    <section id="resultScreen" class="hidden card stage-card">
+      <span class="result-eyebrow" id="resultEyebrow">펑! 터졌습니다</span>
+      <p class="result-name" id="resultName">-</p>
+      <p class="result-sub" id="resultSub">오늘 커피는 이 분이 쏩니다 ☕</p>
+      <div class="result-times hidden" id="resultTimes"></div>
+      <div class="result-actions" id="resultActions">
+        <button id="againBtn" type="button">같은 멤버로 다시</button>
+        <button id="lobbyBtn" type="button">대기실로 돌아가기</button>
+      </div>
+      <p class="wait-note hidden" id="resultWaitNote">호스트가 다음 라운드를 시작하길 기다리는 중…</p>
     </section>
 
     <!-- result: time sense -->
@@ -366,18 +417,6 @@
       <p class="wait-note hidden" id="swResultWaitNote">호스트가 다음 라운드를 시작하길 기다리는 중…</p>
     </section>
 
-    <!-- exploded -->
-    <section id="resultScreen" class="hidden card stage-card">
-      <span class="result-eyebrow">펑! 터졌습니다</span>
-      <p class="result-name" id="resultName">-</p>
-      <p class="result-sub">오늘 커피는 이 분이 쏩니다 ☕</p>
-      <div class="result-actions" id="resultActions">
-        <button id="againBtn" type="button">같은 멤버로 다시</button>
-        <button id="lobbyBtn" type="button">대기실로 돌아가기</button>
-      </div>
-      <p class="wait-note hidden" id="resultWaitNote">호스트가 다음 라운드를 시작하길 기다리는 중…</p>
-    </section>
-
     <!-- host left, room closed -->
     <section id="closedScreen" class="hidden card stage-card">
       <span class="result-eyebrow" style="color: var(--label-alternative);">방 종료</span>
@@ -398,6 +437,7 @@
 
   const GAMES = {
     bomb: { icon: '💣', name: '폭탄 돌리기' },
+    reaction: { icon: '⚡', name: '반응속도 게임' },
     timesense: { icon: '⏱️', name: '시간 감각 게임' },
     stopwatch: { icon: '🫘', name: '콩콩팥팥' },
   };
@@ -445,12 +485,10 @@
   const passBtn = document.getElementById('passBtn');
   const keyHint = document.getElementById('keyHint');
 
-  const resultScreen = document.getElementById('resultScreen');
-  const resultName = document.getElementById('resultName');
-  const resultActions = document.getElementById('resultActions');
-  const resultWaitNote = document.getElementById('resultWaitNote');
-  const againBtn = document.getElementById('againBtn');
-  const lobbyBtn = document.getElementById('lobbyBtn');
+  const reactionScreen = document.getElementById('reactionScreen');
+  const reactionCard = document.getElementById('reactionCard');
+  const reactionHeadline = document.getElementById('reactionHeadline');
+  const reactionSub = document.getElementById('reactionSub');
 
   const tsGameScreen = document.getElementById('tsGameScreen');
   const tsNumber = document.getElementById('tsNumber');
@@ -476,6 +514,16 @@
   const swResultWaitNote = document.getElementById('swResultWaitNote');
   const swAgainBtn = document.getElementById('swAgainBtn');
   const swLobbyBtn = document.getElementById('swLobbyBtn');
+
+  const resultScreen = document.getElementById('resultScreen');
+  const resultEyebrow = document.getElementById('resultEyebrow');
+  const resultName = document.getElementById('resultName');
+  const resultSub = document.getElementById('resultSub');
+  const resultTimes = document.getElementById('resultTimes');
+  const resultActions = document.getElementById('resultActions');
+  const resultWaitNote = document.getElementById('resultWaitNote');
+  const againBtn = document.getElementById('againBtn');
+  const lobbyBtn = document.getElementById('lobbyBtn');
 
   const closedScreen = document.getElementById('closedScreen');
   const toListBtn = document.getElementById('toListBtn');
@@ -586,9 +634,10 @@
 
   startBtn.addEventListener('click', () => send({ type: 'start' }));
   passBtn.addEventListener('click', () => send({ type: 'pass' }));
+  reactionCard.addEventListener('click', () => send({ type: 'react' }));
+  tsReactBtn.addEventListener('click', () => send({ type: 'react' }));
   againBtn.addEventListener('click', () => send({ type: 'restart' }));
   lobbyBtn.addEventListener('click', () => send({ type: 'backToLobby' }));
-  tsReactBtn.addEventListener('click', () => send({ type: 'react' }));
   tsAgainBtn.addEventListener('click', () => send({ type: 'restart' }));
   tsLobbyBtn.addEventListener('click', () => send({ type: 'backToLobby' }));
   swStartStopBtn.addEventListener('click', () => send({ type: lastSwRunning ? 'swStop' : 'swStart' }));
@@ -624,6 +673,16 @@
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) location.reload();
   });
+
+  function scheduleFlicker() {
+    const delay = 500 + Math.random() * 1000;
+    flickerTimer = setTimeout(() => {
+      bombIcon.classList.add('spark');
+      setTimeout(() => bombIcon.classList.remove('spark'), 280);
+      scheduleFlicker();
+    }, delay);
+  }
+  function stopFlicker() { clearTimeout(flickerTimer); bombIcon.classList.remove('spark'); }
 
   let tsTimer = null;
   function stopTsTimer() { clearInterval(tsTimer); tsTimer = null; }
@@ -750,16 +809,6 @@
     });
   }
 
-  function scheduleFlicker() {
-    const delay = 500 + Math.random() * 1000;
-    flickerTimer = setTimeout(() => {
-      bombIcon.classList.add('spark');
-      setTimeout(() => bombIcon.classList.remove('spark'), 280);
-      scheduleFlicker();
-    }, delay);
-  }
-  function stopFlicker() { clearTimeout(flickerTimer); bombIcon.classList.remove('spark'); }
-
   function spawnConfetti() {
     if (reduceMotion) return;
     const pieces = ['☕', '💥', '✨', '🔥'];
@@ -801,6 +850,22 @@
     });
   }
 
+  function renderReactionTimes(state) {
+    const rows = state.participants
+      .filter((p) => p.reactionMs != null)
+      .slice()
+      .sort((a, b) => a.reactionMs - b.reactionMs);
+    resultTimes.innerHTML = '';
+    rows.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'time-row' + (p.id === state.loserId ? ' worst' : '');
+      row.innerHTML = '<span class="time-name"></span><span class="time-ms"></span>';
+      row.querySelector('.time-name').textContent = p.name;
+      row.querySelector('.time-ms').textContent = p.falseStart ? '부정출발' : p.reactionMs + 'ms';
+      resultTimes.appendChild(row);
+    });
+  }
+
   function updateBombFlyer(animate) {
     const holdingRow = gameParticipantList.querySelector('.p-row.holding');
     if (!holdingRow) {
@@ -830,8 +895,9 @@
     nameScreen.classList.toggle('hidden', !!myId);
     lobbyScreen.classList.add('hidden');
     gameScreen.classList.add('hidden');
-    resultScreen.classList.add('hidden');
+    reactionScreen.classList.add('hidden');
     tsGameScreen.classList.add('hidden');
+    resultScreen.classList.add('hidden');
     tsResultScreen.classList.add('hidden');
     swGameScreen.classList.add('hidden');
     swResultScreen.classList.add('hidden');
@@ -840,7 +906,8 @@
     stopTsTimer();
     stopSwTimerLoop();
 
-    if (state.gameType === 'bomb' && state.phase === 'exploded' && lastPhase !== 'exploded') triggerBoom();
+    const REVEAL_PHASES = ['exploded', 'finished'];
+    if (REVEAL_PHASES.includes(state.phase) && !REVEAL_PHASES.includes(lastPhase)) triggerBoom();
     lastPhase = state.phase;
 
     if (!myId) return;
@@ -853,7 +920,7 @@
       renderParticipantRows(participantList, connected, state.hostId, null);
       if (state.you.isHost) {
         startBtn.classList.remove('hidden');
-        startBtn.disabled = connected.length < (state.gameType === 'bomb' ? 2 : 1);
+        startBtn.disabled = connected.length < (state.gameType === 'timesense' ? 1 : 2);
         waitNote.classList.add('hidden');
       } else {
         startBtn.classList.add('hidden');
@@ -887,6 +954,31 @@
         swResultActions.classList.add('hidden');
         swResultWaitNote.classList.remove('hidden');
       }
+    } else if (state.gameType === 'reaction' && (state.phase === 'armed' || state.phase === 'green')) {
+      reactionScreen.classList.remove('hidden');
+      const me = state.participants.find((p) => p.id === myId);
+      const reacted = !!(me && me.reactionMs != null);
+      const canAct = !!state.you.canReact;
+      reactionCard.classList.toggle('armed', state.phase === 'armed');
+      reactionCard.classList.toggle('go', state.phase === 'green');
+      reactionCard.classList.toggle('locked', !canAct);
+      reactionCard.disabled = !canAct;
+      if (reacted && me.falseStart) {
+        reactionHeadline.textContent = '앗, 부정출발!';
+        reactionSub.textContent = '결과를 기다리는 중…';
+      } else if (reacted) {
+        reactionHeadline.textContent = '기록 완료!';
+        reactionSub.textContent = '다른 사람들을 기다리는 중…';
+      } else if (!canAct) {
+        reactionHeadline.textContent = '관전 중';
+        reactionSub.textContent = '다음 라운드부터 참여할 수 있어요';
+      } else if (state.phase === 'armed') {
+        reactionHeadline.textContent = '아직 누르지 마세요';
+        reactionSub.textContent = '초록색으로 바뀌는 순간 눌러요';
+      } else {
+        reactionHeadline.textContent = '지금 눌러요!';
+        reactionSub.textContent = '';
+      }
     } else if (state.phase === 'playing') {
       gameScreen.classList.remove('hidden');
       gameParticipantLabel.textContent = '참가자 (' + connected.length + '명)';
@@ -906,9 +998,19 @@
         passBtn.classList.add('hidden');
         keyHint.classList.add('hidden');
       }
-    } else if (state.phase === 'exploded') {
+    } else if (state.phase === 'exploded' || state.phase === 'finished') {
       resultScreen.classList.remove('hidden');
       const loser = state.participants.find((p) => p.id === state.loserId);
+      if (state.gameType === 'reaction') {
+        resultEyebrow.textContent = '결과 발표';
+        resultSub.textContent = '오늘 커피는 이 분이 쏩니다 ☕';
+        resultTimes.classList.remove('hidden');
+        renderReactionTimes(state);
+      } else {
+        resultEyebrow.textContent = '펑! 터졌습니다';
+        resultSub.textContent = '오늘 커피는 이 분이 쏩니다 ☕';
+        resultTimes.classList.add('hidden');
+      }
       resultName.textContent = loser ? loser.name : '알 수 없음';
       if (state.you.isHost) {
         resultActions.classList.remove('hidden');
