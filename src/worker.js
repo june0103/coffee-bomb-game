@@ -49,6 +49,47 @@ export default {
       return lb.fetch("https://leaderboard/current");
     }
 
+    // Restaurant search, proxied so the Kakao key stays server-side.
+    // Results are relayed live and never stored — Kakao's operating policy
+    // forbids caching or persisting them.
+    if (pathname === "/api/places/search" && request.method === "GET") {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (q.length < 2) return json({ places: [] });
+      if (!env.KAKAO_REST_KEY) return json({ error: "kakao_key_missing" }, { status: 500 });
+
+      const kakaoUrl = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
+      kakaoUrl.searchParams.set("query", q);
+      kakaoUrl.searchParams.set("category_group_code", "FD6"); // 음식점만
+      kakaoUrl.searchParams.set("size", "10");
+
+      const res = await fetch(kakaoUrl, {
+        headers: { Authorization: `KakaoAK ${env.KAKAO_REST_KEY}` },
+      });
+      if (!res.ok) {
+        // surface the status only — the response body can echo the key back
+        return json({ error: "kakao_error", status: res.status }, { status: 502 });
+      }
+
+      const data = await res.json();
+      // When a keyword matches no 음식점, Kakao pads the response with unrelated
+      // places (searching "스타벅스" returns 양평해장국). Keep only rows the query
+      // actually shows up in — the category is checked too so dish-name searches
+      // like "김치찌개" still match restaurants that aren't named after the dish.
+      const needle = q.replace(/\s+/g, "").toLowerCase();
+      const matches = (text) => (text || "").replace(/\s+/g, "").toLowerCase().includes(needle);
+
+      const places = (data.documents || [])
+        .map((d) => ({
+          id: d.id,
+          name: d.place_name,
+          category: d.category_name,
+          address: d.road_address_name || d.address_name,
+          placeUrl: d.place_url,
+        }))
+        .filter((p) => matches(p.name) || matches(p.category));
+      return json({ places });
+    }
+
     if (pathname === "/api/rooms" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
       const name = (body.name || "").toString().trim().slice(0, 30) || "이름 없는 방";
