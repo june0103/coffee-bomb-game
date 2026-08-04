@@ -7,6 +7,7 @@ import rankingHtml from "../public/ranking.html";
 export { GameRoom } from "./durable-objects/gameRoom.js";
 export { Directory } from "./durable-objects/directory.js";
 export { Leaderboard } from "./durable-objects/leaderboard.js";
+export { Restaurants } from "./durable-objects/restaurants.js";
 
 const ROOM_ID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid mix-ups
 
@@ -88,6 +89,37 @@ export default {
         }))
         .filter((p) => matches(p.name) || matches(p.category));
       return json({ places });
+    }
+
+    // Restaurant registry. Kakao place ids are numeric, so this pattern can
+    // never swallow the /api/places/search route above.
+    if (pathname.startsWith("/api/places")) {
+      const registry = env.RESTAURANTS.get(env.RESTAURANTS.idFromName("global"));
+
+      if (pathname === "/api/places" && request.method === "GET") {
+        return registry.fetch("https://restaurants/list");
+      }
+
+      if (pathname === "/api/places" && request.method === "POST") {
+        return registry.fetch("https://restaurants/place", {
+          method: "POST",
+          body: await request.text(),
+        });
+      }
+
+      const detailMatch = pathname.match(/^\/api\/places\/(\d+)$/);
+      if (detailMatch && request.method === "GET") {
+        return registry.fetch("https://restaurants/place?id=" + detailMatch[1]);
+      }
+
+      const reviewMatch = pathname.match(/^\/api\/places\/(\d+)\/review$/);
+      if (reviewMatch && (request.method === "PUT" || request.method === "DELETE")) {
+        const body = await request.json().catch(() => ({}));
+        return registry.fetch("https://restaurants/review", {
+          method: request.method,
+          body: JSON.stringify({ ...body, placeId: reviewMatch[1] }),
+        });
+      }
     }
 
     if (pathname === "/api/rooms" && request.method === "POST") {

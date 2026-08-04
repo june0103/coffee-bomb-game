@@ -20,6 +20,10 @@ class_name = "Directory"
 name = "LEADERBOARD"
 class_name = "Leaderboard"
 
+[[durable_objects.bindings]]
+name = "RESTAURANTS"
+class_name = "Restaurants"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom", "Directory"]
@@ -27,3 +31,7 @@ new_sqlite_classes = ["GameRoom", "Directory"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Leaderboard"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["Restaurants"]
