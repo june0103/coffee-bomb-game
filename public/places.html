@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>우리 팀 맛집 - GoodGame</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root {
+    --primary: #06f;
+    --primary-strong: #005eeb;
+    --bg: #fff;
+    --bg-alt: #f7f7f8;
+    --bg-elevated: #fff;
+    --label-normal: #171719;
+    --label-neutral: rgba(46, 47, 51, 0.88);
+    --label-alternative: rgba(55, 56, 60, 0.61);
+    --line-solid: #e1e2e4;
+    --line-solid-neutral: #eaebec;
+    --ring: rgba(0, 102, 255, 0.1);
+    --status-positive: #00bf40;
+    --status-positive-bg: rgba(0, 191, 64, 0.1);
+    --status-cautionary: #ff9200;
+    --status-cautionary-bg: rgba(255, 146, 0, 0.12);
+    --star: #ffb300;
+    --shadow-small: 0px 2px 4px -2px rgba(23, 23, 25, 0.06), 0px 4px 6px -1px rgba(23, 23, 25, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #3385ff;
+      --primary-strong: #1a75ff;
+      --bg: #1b1c1e;
+      --bg-alt: #0f0f10;
+      --bg-elevated: #212225;
+      --label-normal: #f7f7f8;
+      --label-neutral: rgba(194, 196, 200, 0.88);
+      --label-alternative: rgba(174, 176, 182, 0.61);
+      --line-solid: #37383c;
+      --line-solid-neutral: #333438;
+      --ring: rgba(51, 133, 255, 0.16);
+      --status-positive: #1ed45a;
+      --status-positive-bg: rgba(30, 212, 90, 0.12);
+      --status-cautionary: #ffa938;
+      --status-cautionary-bg: rgba(255, 169, 56, 0.14);
+      --star: #ffc043;
+      --shadow-small: 0px 2px 4px -2px rgba(0, 0, 0, 0.35), 0px 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--label-normal);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", Roboto, "Helvetica Neue", sans-serif;
+    letter-spacing: -0.012em;
+  }
+  button, input, select { font-family: inherit; touch-action: manipulation; }
+  input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .hidden { display: none !important; }
+
+  .page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px calc(48px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h1 { margin: 0; font-size: 26px; line-height: 36px; letter-spacing: -0.0236em; font-weight: 700; }
+  .back-link {
+    background: none; border: none; color: var(--label-alternative); font-size: 13px;
+    cursor: pointer; padding: 6px; flex-shrink: 0; text-decoration: none;
+  }
+  .sub { margin: 6px 0 0; color: var(--label-alternative); font-size: 14.5px; line-height: 21px; }
+
+  .card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-solid-neutral);
+    border-radius: 20px;
+    box-shadow: var(--shadow-small);
+    padding: 20px;
+  }
+  .section-label {
+    font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-alternative);
+    margin: 0 2px 10px;
+  }
+
+  /* ---- identity ---- */
+  .identity-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 16px; border-radius: 14px; background: var(--bg-alt);
+  }
+  .identity-text { font-size: 14px; color: var(--label-neutral); }
+  .identity-text strong { color: var(--label-normal); font-weight: 700; }
+  .identity-btn {
+    background: none; border: none; color: var(--primary); font-weight: 600; font-size: 13.5px;
+    cursor: pointer; padding: 6px; flex-shrink: 0;
+  }
+  .rename-row { display: flex; gap: 8px; }
+  .rename-row input {
+    flex: 1; min-width: 0; padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-normal); font-size: 15px;
+  }
+  .rename-row button {
+    padding: 0 18px; border-radius: 12px; border: none; background: var(--primary); color: #fff;
+    font-weight: 600; font-size: 14px; cursor: pointer; flex-shrink: 0;
+  }
+
+  /* ---- search ---- */
+  #searchInput {
+    width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-normal); font-size: 16px;
+  }
+  .search-hint { margin: 10px 2px 0; font-size: 12.5px; color: var(--label-alternative); }
+  .search-results { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .sr-item {
+    border: 1px solid var(--line-solid-neutral); border-radius: 14px; background: var(--bg-alt);
+    overflow: hidden;
+  }
+  .sr-head {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 12px 14px; background: none; border: none; cursor: pointer; color: var(--label-normal);
+  }
+  .sr-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .sr-name { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sr-meta { font-size: 12.5px; color: var(--label-alternative); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sr-dist {
+    font-size: 12px; font-weight: 700; color: var(--primary); flex-shrink: 0;
+    background: var(--ring); padding: 4px 9px; border-radius: 999px;
+  }
+  .sr-known { font-size: 11.5px; font-weight: 600; color: var(--status-positive); flex-shrink: 0; }
+  .sr-tags { display: none; flex-wrap: wrap; gap: 6px; padding: 0 14px 14px; }
+  .sr-item.open .sr-tags { display: flex; }
+  .sr-tags .tag-hint { width: 100%; font-size: 12px; color: var(--label-alternative); margin-bottom: 2px; }
+  .tag-chip {
+    padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line-solid);
+    background: var(--bg-elevated); color: var(--label-normal); font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .tag-chip:active { background: var(--ring); border-color: var(--primary); }
+
+  /* ---- lists ---- */
+  .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; }
+  .list-head h2 { font-size: 14px; line-height: 20px; margin: 0; color: var(--label-alternative); font-weight: 600; }
+  #sortSelect {
+    border: 1px solid var(--line-solid); border-radius: 10px; background: var(--bg-elevated);
+    color: var(--label-normal); font-size: 13px; font-weight: 600; padding: 7px 10px; cursor: pointer;
+  }
+  .place-list { display: flex; flex-direction: column; gap: 10px; }
+  .place-card {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 15px 16px; border-radius: 16px; background: var(--bg-elevated);
+    border: 1px solid var(--line-solid-neutral); cursor: pointer; color: var(--label-normal);
+    box-shadow: var(--shadow-small);
+  }
+  .place-card:active { background: var(--bg-alt); }
+  .rank-num {
+    font-size: 15px; font-weight: 800; color: var(--label-alternative); width: 26px; flex-shrink: 0;
+  }
+  .place-card.top-1 .rank-num, .place-card.top-2 .rank-num, .place-card.top-3 .rank-num { color: var(--status-cautionary); }
+  .place-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+  .place-name { font-weight: 600; font-size: 15.5px; line-height: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .place-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--label-alternative); }
+  .tag-badge {
+    font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+    background: var(--bg-alt); color: var(--label-neutral);
+  }
+  .thin-badge {
+    font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+    background: var(--status-cautionary-bg); color: var(--status-cautionary);
+  }
+  .place-score { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+  .score-main { font-size: 16px; font-weight: 800; color: var(--star); font-variant-numeric: tabular-nums; }
+  .score-none { font-size: 13px; font-weight: 600; color: var(--label-alternative); }
+  .score-count { font-size: 11.5px; color: var(--label-alternative); }
+  .score-split { font-size: 11px; color: var(--label-alternative); }
+
+  .empty-state { text-align: center; color: var(--label-alternative); font-size: 14px; padding: 26px 12px; line-height: 21px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div>
+      <div class="top-row">
+        <h1>🍜 우리 팀 맛집</h1>
+        <a class="back-link" href="/">← 게임으로</a>
+      </div>
+      <p class="sub">가본 곳에 별점을 남겨두면, 다음에 뭐 먹을지 고민하는 시간이 줄어들어요.</p>
+    </div>
+
+    <div class="identity-row">
+      <span class="identity-text" id="identityText"></span>
+      <button class="identity-btn" id="identityBtn" type="button"></button>
+    </div>
+    <div class="rename-row hidden" id="renameRow">
+      <input id="renameInput" type="text" maxlength="12" autocomplete="off" placeholder="이름 (최대 12자)" />
+      <button id="renameSaveBtn" type="button">저장</button>
+    </div>
+
+    <section class="card">
+      <p class="section-label">가게 검색해서 등록하기</p>
+      <input id="searchInput" type="text" placeholder="가게 이름 (예: 김밥천국)" autocomplete="off" />
+      <p class="search-hint" id="searchHint">회사 주변 800m 안의 음식점만 검색돼요.</p>
+      <div class="search-results" id="searchResults"></div>
+    </section>
+
+    <section id="topSection" class="hidden">
+      <p class="section-label">🏆 팀 추천 TOP</p>
+      <div class="place-list" id="topList"></div>
+    </section>
+
+    <div>
+      <div class="list-head">
+        <h2 id="allCount">전체</h2>
+        <select id="sortSelect">
+          <option value="recent">최신 등록순</option>
+          <option value="rating">평점순</option>
+          <option value="reviews">리뷰 많은 순</option>
+        </select>
+      </div>
+      <div class="place-list" id="placeList" style="margin-top:10px;">
+        <p class="empty-state">아직 등록된 가게가 없어요.<br />위에서 검색해 첫 가게를 등록해보세요.</p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const TAGS = [
+    { id: 'korean', label: '한식' },
+    { id: 'chinese', label: '중식' },
+    { id: 'japanese', label: '일식' },
+    { id: 'western', label: '양식' },
+    { id: 'snack', label: '분식' },
+    { id: 'etc', label: '기타' },
+  ];
+  const tagLabel = (id) => (TAGS.find((t) => t.id === id) || { label: '기타' }).label;
+
+  const IDENTITY_KEY = 'coffee-bomb:identity';
+  function loadIdentity() {
+    try { return JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch { return null; }
+  }
+  function saveIdentity(deviceId, name) {
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({ deviceId, name }));
+  }
+  let identity = loadIdentity();
+  if (!identity || !identity.deviceId) {
+    identity = { deviceId: crypto.randomUUID(), name: (identity && identity.name) || '' };
+    saveIdentity(identity.deviceId, identity.name);
+  }
+
+  const identityText = document.getElementById('identityText');
+  const identityBtn = document.getElementById('identityBtn');
+  const renameRow = document.getElementById('renameRow');
+  const renameInput = document.getElementById('renameInput');
+  const renameSaveBtn = document.getElementById('renameSaveBtn');
+
+  function renderIdentity() {
+    identityText.textContent = '';
+    if (identity.name) {
+      const strong = document.createElement('strong');
+      strong.textContent = identity.name;
+      identityText.append(strong, '님으로 기록해요');
+      identityBtn.textContent = '이름 변경';
+    } else {
+      identityText.textContent = '평점을 남기려면 이름이 필요해요';
+      identityBtn.textContent = '이름 설정';
+    }
+  }
+  renderIdentity();
+
+  identityBtn.addEventListener('click', () => {
+    renameInput.value = identity.name || '';
+    renameRow.classList.toggle('hidden');
+    if (!renameRow.classList.contains('hidden')) renameInput.focus();
+  });
+  function saveRename() {
+    const name = renameInput.value.trim();
+    if (!name) return;
+    identity.name = name;
+    saveIdentity(identity.deviceId, name);
+    renderIdentity();
+    renameRow.classList.add('hidden');
+  }
+  renameSaveBtn.addEventListener('click', saveRename);
+  renameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
+  });
+
+  // ---- search ----
+  const searchInput = document.getElementById('searchInput');
+  const searchResults = document.getElementById('searchResults');
+  const searchHint = document.getElementById('searchHint');
+
+  let knownIds = new Set(); // places already registered, so search can flag them
+  let searchTimer = null;
+  let searchSeq = 0;
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const q = searchInput.value.trim();
+    if (q.length < 2) {
+      searchResults.innerHTML = '';
+      searchHint.textContent = '회사 주변 800m 안의 음식점만 검색돼요.';
+      return;
+    }
+    // debounced so a burst of keystrokes doesn't burn through the Kakao quota
+    searchTimer = setTimeout(() => runSearch(q), 300);
+  });
+
+  async function runSearch(q) {
+    const seq = ++searchSeq;
+    searchHint.textContent = '검색 중…';
+    try {
+      const res = await fetch('/api/places/search?q=' + encodeURIComponent(q));
+      if (seq !== searchSeq) return; // a newer search already came back
+      // A failed request must not fall through to the empty-results message —
+      // "주변에 가게가 없다"와 "검색이 고장났다"는 전혀 다른 상황이다.
+      if (!res.ok) {
+        searchResults.innerHTML = '';
+        searchHint.textContent = '검색이 지금 안 되고 있어요. 잠시 후 다시 시도해주세요.';
+        return;
+      }
+      const data = await res.json();
+      if (seq !== searchSeq) return;
+      renderSearchResults(data.places || []);
+    } catch {
+      if (seq === searchSeq) {
+        searchResults.innerHTML = '';
+        searchHint.textContent = '검색에 실패했어요. 잠시 후 다시 시도해주세요.';
+      }
+    }
+  }
+
+  function renderSearchResults(places) {
+    searchResults.innerHTML = '';
+    if (!places.length) {
+      searchHint.textContent = '회사 주변에서 찾지 못했어요. 다른 이름으로 검색해보세요.';
+      return;
+    }
+    searchHint.textContent = '가게를 누르고 종류를 고르면 등록돼요.';
+    places.forEach((p) => {
+      const item = document.createElement('div');
+      item.className = 'sr-item';
+
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'sr-head';
+      head.innerHTML =
+        '<span class="sr-info"><span class="sr-name"></span><span class="sr-meta"></span></span>' +
+        (knownIds.has(p.id) ? '<span class="sr-known">등록됨</span>' : '') +
+        (p.distance != null ? '<span class="sr-dist"></span>' : '');
+      head.querySelector('.sr-name').textContent = p.name;
+      head.querySelector('.sr-meta').textContent =
+        (p.category ? p.category.split(' > ').slice(1).join(' · ') || p.category : '') +
+        (p.address ? ' · ' + p.address : '');
+      if (p.distance != null) head.querySelector('.sr-dist').textContent = p.distance + 'm';
+
+      // Already-registered places skip the tag step and go straight to rating.
+      head.addEventListener('click', () => {
+        if (knownIds.has(p.id)) { location.href = '/places/' + p.id; return; }
+        item.classList.toggle('open');
+      });
+
+      const tags = document.createElement('div');
+      tags.className = 'sr-tags';
+      const hint = document.createElement('span');
+      hint.className = 'tag-hint';
+      hint.textContent = '어떤 종류예요?';
+      tags.appendChild(hint);
+      TAGS.forEach((t) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'tag-chip';
+        chip.textContent = t.label;
+        chip.addEventListener('click', () => registerPlace(p, t.id, chip));
+        tags.appendChild(chip);
+      });
+
+      item.append(head, tags);
+      searchResults.appendChild(item);
+    });
+  }
+
+  async function registerPlace(place, tag, chip) {
+    chip.disabled = true;
+    try {
+      const res = await fetch('/api/places', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          placeId: place.id,
+          name: place.name,
+          placeUrl: place.placeUrl,
+          tag,
+          deviceId: identity.deviceId,
+          authorName: identity.name,
+        }),
+      });
+      if (!res.ok) throw new Error('failed');
+      location.href = '/places/' + place.id;
+    } catch {
+      chip.disabled = false;
+      alert('등록에 실패했어요. 다시 시도해주세요.');
+    }
+  }
+
+  // ---- lists ----
+  const topSection = document.getElementById('topSection');
+  const topList = document.getElementById('topList');
+  const placeList = document.getElementById('placeList');
+  const allCount = document.getElementById('allCount');
+  const sortSelect = document.getElementById('sortSelect');
+
+  let places = [];
+  let minReviews = 2;
+
+  function scoreEls(p) {
+    const wrap = document.createElement('span');
+    wrap.className = 'place-score';
+    if (p.rating == null) {
+      const none = document.createElement('span');
+      none.className = 'score-none';
+      none.textContent = '평점 없음';
+      wrap.appendChild(none);
+      return wrap;
+    }
+    const main = document.createElement('span');
+    main.className = 'score-main';
+    main.textContent = '★ ' + p.rating.toFixed(1);
+    const count = document.createElement('span');
+    count.className = 'score-count';
+    count.textContent = '리뷰 ' + p.reviewCount + '개';
+    wrap.append(main, count);
+
+    // Dine-in and delivery are shown apart: the same place can be great in the
+    // shop and mediocre by the time delivery arrives.
+    const parts = [];
+    if (p.dineIn.count) parts.push('🍽 ' + p.dineIn.avg.toFixed(1));
+    if (p.delivery.count) parts.push('🛵 ' + p.delivery.avg.toFixed(1));
+    if (parts.length === 2) {
+      const split = document.createElement('span');
+      split.className = 'score-split';
+      split.textContent = parts.join(' · ');
+      wrap.appendChild(split);
+    }
+    return wrap;
+  }
+
+  function placeCard(p, rank) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'place-card' + (rank && rank <= 3 ? ' top-' + rank : '');
+
+    if (rank) {
+      const num = document.createElement('span');
+      num.className = 'rank-num';
+      num.textContent = rank + '위';
+      card.appendChild(num);
+    }
+
+    const info = document.createElement('span');
+    info.className = 'place-info';
+    const name = document.createElement('span');
+    name.className = 'place-name';
+    name.textContent = p.name;
+    const meta = document.createElement('span');
+    meta.className = 'place-meta';
+    const tag = document.createElement('span');
+    tag.className = 'tag-badge';
+    tag.textContent = tagLabel(p.tag);
+    meta.appendChild(tag);
+    if (!p.ranked) {
+      const thin = document.createElement('span');
+      thin.className = 'thin-badge';
+      thin.textContent = '리뷰 부족';
+      meta.appendChild(thin);
+    }
+    info.append(name, meta);
+
+    card.append(info, scoreEls(p));
+    card.addEventListener('click', () => { location.href = '/places/' + p.id; });
+    return card;
+  }
+
+  function renderTop() {
+    // Only places past the review threshold are ranked — one 5-star review
+    // would otherwise sit at the top of the chart forever.
+    const ranked = places
+      .filter((p) => p.ranked)
+      .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount)
+      .slice(0, 5);
+
+    if (!ranked.length) {
+      topSection.classList.add('hidden');
+      return;
+    }
+    topSection.classList.remove('hidden');
+    topList.innerHTML = '';
+    ranked.forEach((p, i) => topList.appendChild(placeCard(p, i + 1)));
+  }
+
+  function renderAll() {
+    const sort = sortSelect.value;
+    const rows = places.slice();
+    if (sort === 'rating') {
+      rows.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || b.reviewCount - a.reviewCount);
+    } else if (sort === 'reviews') {
+      rows.sort((a, b) => b.reviewCount - a.reviewCount || (b.rating ?? -1) - (a.rating ?? -1));
+    } else {
+      rows.sort((a, b) => b.addedAt - a.addedAt);
+    }
+
+    allCount.textContent = '전체 ' + rows.length + '곳';
+    placeList.innerHTML = '';
+    if (!rows.length) {
+      placeList.innerHTML = '<p class="empty-state">아직 등록된 가게가 없어요.<br />위에서 검색해 첫 가게를 등록해보세요.</p>';
+      return;
+    }
+    rows.forEach((p) => placeList.appendChild(placeCard(p, null)));
+  }
+
+  sortSelect.addEventListener('change', renderAll);
+
+  async function loadPlaces() {
+    try {
+      const res = await fetch('/api/places');
+      const data = await res.json();
+      places = data.places || [];
+      if (typeof data.minReviewsForRanking === 'number') minReviews = data.minReviewsForRanking;
+      knownIds = new Set(places.map((p) => p.id));
+      renderTop();
+      renderAll();
+    } catch {
+      // keep whatever is on screen if the list request fails
+    }
+  }
+
+  loadPlaces();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadPlaces(); });
+  window.addEventListener('pageshow', (event) => { if (event.persisted) loadPlaces(); });
+</script>
+</body>
+</html>

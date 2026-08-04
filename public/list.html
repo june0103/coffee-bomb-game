@@ -101,12 +101,14 @@
   }
   .hidden { display: none !important; }
 
+  .quick-links { display: flex; gap: 10px; }
   .rank-link {
+    flex: 1; min-width: 0;
     display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 13px; border-radius: 14px; text-decoration: none;
+    padding: 13px 10px; border-radius: 14px; text-decoration: none;
     background: var(--bg-elevated); border: 1px solid var(--line-solid-neutral);
-    color: var(--label-normal); font-weight: 600; font-size: 14.5px;
-    box-shadow: var(--shadow-small);
+    color: var(--label-normal); font-weight: 600; font-size: 14px;
+    box-shadow: var(--shadow-small); white-space: nowrap;
   }
   .rank-link:active { background: var(--bg-alt); }
 
@@ -187,7 +189,10 @@
       <button id="renameSaveBtn" type="button">저장</button>
     </div>
 
-    <a class="rank-link" href="/ranking">🏆 이주의 후원자 보기</a>
+    <div class="quick-links">
+      <a class="rank-link" href="/ranking">🏆 이주의 후원자</a>
+      <a class="rank-link" href="/places">🍜 우리 팀 맛집</a>
+    </div>
 
     <section class="card">
       <p class="section-label">게임 선택</p>

@@ -159,7 +159,14 @@ export class Restaurants {
         orderType,
         rating,
         authorName: (body.authorName || "").toString().trim().slice(0, 12),
-        text: (body.text || "").toString().trim().slice(0, MAX_TEXT_LEN),
+        // Omitting text keeps whatever was there. Defaulting it to "" would mean
+        // changing a star silently wipes the comment that came with it.
+        text:
+          body.text !== undefined
+            ? body.text.toString().trim().slice(0, MAX_TEXT_LEN)
+            : existing
+              ? existing.text || ""
+              : "",
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now,
       };

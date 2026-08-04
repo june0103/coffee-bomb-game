@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>맛집 상세 - GoodGame</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  :root {
+    --primary: #06f;
+    --primary-strong: #005eeb;
+    --bg: #fff;
+    --bg-alt: #f7f7f8;
+    --bg-elevated: #fff;
+    --label-normal: #171719;
+    --label-neutral: rgba(46, 47, 51, 0.88);
+    --label-alternative: rgba(55, 56, 60, 0.61);
+    --line-solid: #e1e2e4;
+    --line-solid-neutral: #eaebec;
+    --ring: rgba(0, 102, 255, 0.1);
+    --status-positive: #00bf40;
+    --status-cautionary: #ff9200;
+    --status-cautionary-bg: rgba(255, 146, 0, 0.12);
+    --status-negative: #ff4242;
+    --star: #ffb300;
+    --star-off: #d8d9dc;
+    --shadow-small: 0px 2px 4px -2px rgba(23, 23, 25, 0.06), 0px 4px 6px -1px rgba(23, 23, 25, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #3385ff;
+      --primary-strong: #1a75ff;
+      --bg: #1b1c1e;
+      --bg-alt: #0f0f10;
+      --bg-elevated: #212225;
+      --label-normal: #f7f7f8;
+      --label-neutral: rgba(194, 196, 200, 0.88);
+      --label-alternative: rgba(174, 176, 182, 0.61);
+      --line-solid: #37383c;
+      --line-solid-neutral: #333438;
+      --ring: rgba(51, 133, 255, 0.16);
+      --status-positive: #1ed45a;
+      --status-cautionary: #ffa938;
+      --status-cautionary-bg: rgba(255, 169, 56, 0.14);
+      --status-negative: #ff6363;
+      --star: #ffc043;
+      --star-off: #44464b;
+      --shadow-small: 0px 2px 4px -2px rgba(0, 0, 0, 0.35), 0px 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--label-normal);
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", Roboto, "Helvetica Neue", sans-serif;
+    letter-spacing: -0.012em;
+  }
+  button, input, textarea { font-family: inherit; touch-action: manipulation; }
+  input:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .hidden { display: none !important; }
+
+  .page {
+    max-width: 480px; margin: 0 auto;
+    padding: 28px 20px calc(48px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .back-link {
+    align-self: flex-start; background: none; border: none; color: var(--label-alternative);
+    font-size: 13.5px; cursor: pointer; padding: 4px 0; text-decoration: none;
+  }
+  .card {
+    background: var(--bg-elevated); border: 1px solid var(--line-solid-neutral);
+    border-radius: 20px; box-shadow: var(--shadow-small); padding: 20px;
+  }
+  .section-label {
+    font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-alternative);
+    margin: 0 2px 12px;
+  }
+
+  /* ---- header ---- */
+  h1 { margin: 0; font-size: 23px; line-height: 31px; font-weight: 700; text-wrap: balance; }
+  .head-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .tag-badge {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: var(--bg-alt); color: var(--label-neutral);
+  }
+  .thin-badge {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: var(--status-cautionary-bg); color: var(--status-cautionary);
+  }
+  .map-link {
+    display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px;
+    padding: 13px; border-radius: 12px; text-decoration: none;
+    background: var(--bg-alt); color: var(--label-normal); font-weight: 600; font-size: 14.5px;
+  }
+  .map-link:active { background: var(--ring); }
+  .map-note { margin: 8px 2px 0; font-size: 12px; color: var(--label-alternative); line-height: 17px; }
+
+  /* ---- score summary ---- */
+  .score-total { display: flex; align-items: baseline; gap: 8px; }
+  .score-big { font-size: 34px; font-weight: 800; color: var(--star); font-variant-numeric: tabular-nums; line-height: 1; }
+  .score-sub { font-size: 13.5px; color: var(--label-alternative); }
+  .score-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .score-row {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-radius: 12px; background: var(--bg-alt); font-size: 14px;
+  }
+  .score-row .sr-label { flex: 1; font-weight: 600; }
+  .score-row .sr-val { font-weight: 700; color: var(--star); font-variant-numeric: tabular-nums; }
+  .score-row .sr-cnt { font-size: 12.5px; color: var(--label-alternative); }
+  .score-row.empty .sr-val { color: var(--label-alternative); font-weight: 600; }
+
+  /* ---- my rating ---- */
+  .rate-block { display: flex; flex-direction: column; gap: 8px; }
+  .rate-block + .rate-block { margin-top: 18px; }
+  .rate-head { display: flex; align-items: center; gap: 8px; }
+  .rate-label { font-weight: 600; font-size: 14.5px; flex: 1; }
+  .rate-clear {
+    background: none; border: none; color: var(--label-alternative); font-size: 12.5px;
+    cursor: pointer; padding: 4px; text-decoration: underline;
+  }
+  .stars { display: flex; gap: 2px; }
+  .star-btn {
+    background: none; border: none; cursor: pointer; padding: 4px 2px;
+    font-size: 30px; line-height: 1; color: var(--star-off);
+  }
+  .star-btn.on { color: var(--star); }
+  .star-btn:active { transform: scale(0.92); }
+  .rate-value { font-size: 13px; color: var(--label-alternative); font-weight: 600; }
+
+  .text-row { display: flex; gap: 8px; margin-top: 4px; }
+  .text-row textarea {
+    flex: 1; min-width: 0; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-normal); font-size: 14.5px; resize: vertical;
+    min-height: 44px; max-height: 120px;
+  }
+  .text-row button {
+    padding: 0 16px; border-radius: 12px; border: none; background: var(--primary); color: #fff;
+    font-weight: 600; font-size: 14px; cursor: pointer; flex-shrink: 0; align-self: stretch;
+  }
+  .saved-note { font-size: 12.5px; color: var(--status-positive); font-weight: 600; }
+
+  .name-prompt {
+    margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--bg-alt);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .name-prompt p { margin: 0; font-size: 13.5px; color: var(--label-neutral); }
+  .name-prompt .row { display: flex; gap: 8px; }
+  .name-prompt input {
+    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-elevated); color: var(--label-normal); font-size: 15px;
+  }
+  .name-prompt button {
+    padding: 0 18px; border-radius: 12px; border: none; background: var(--primary); color: #fff;
+    font-weight: 600; font-size: 14px; cursor: pointer; flex-shrink: 0;
+  }
+
+  /* ---- reviews ---- */
+  .review-list { display: flex; flex-direction: column; gap: 10px; }
+  .review {
+    padding: 13px 15px; border-radius: 14px; background: var(--bg-alt);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .review-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .review-author { font-weight: 700; }
+  .review-type { color: var(--label-alternative); }
+  .review-score { margin-left: auto; font-weight: 700; color: var(--star); }
+  .review-text { font-size: 14.5px; line-height: 21px; color: var(--label-neutral); white-space: pre-wrap; }
+  .rating-only-note {
+    margin: 12px 2px 0; font-size: 13px; color: var(--label-alternative);
+  }
+  .empty-state { text-align: center; color: var(--label-alternative); font-size: 14px; padding: 20px 12px; line-height: 21px; }
+  .tag-edit { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .tag-chip {
+    padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-solid);
+    background: var(--bg-elevated); color: var(--label-normal); font-size: 12.5px; font-weight: 600;
+    cursor: pointer;
+  }
+  .tag-chip.on { background: var(--ring); border-color: var(--primary); color: var(--primary); }
+</style>
+</head>
+<body>
+  <div class="page">
+    <a class="back-link" href="/places">← 맛집 목록</a>
+
+    <div id="content" class="hidden">
+      <div class="card" style="margin-bottom:16px;">
+        <h1 id="placeName">-</h1>
+        <div class="head-meta" id="headMeta"></div>
+        <a class="map-link" id="mapLink" target="_blank" rel="noopener noreferrer">📍 카카오맵에서 보기</a>
+        <p class="map-note">주소·전화번호·영업시간·사진은 카카오맵에서 확인하세요. 항상 최신 정보예요.</p>
+        <div class="tag-edit" id="tagEdit"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <p class="section-label">팀 평점</p>
+        <div class="score-total">
+          <span class="score-big" id="scoreBig">-</span>
+          <span class="score-sub" id="scoreSub"></span>
+        </div>
+        <div class="score-rows" id="scoreRows"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <p class="section-label">내 평가</p>
+        <div id="rateArea"></div>
+        <div class="name-prompt hidden" id="namePrompt">
+          <p>평점을 남기려면 이름이 필요해요.</p>
+          <div class="row">
+            <input id="nameInput" type="text" maxlength="12" placeholder="이름 (최대 12자)" autocomplete="off" />
+            <button id="nameSaveBtn" type="button">저장</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-label">팀 리뷰</p>
+        <div class="review-list" id="reviewList"></div>
+        <p class="rating-only-note hidden" id="ratingOnlyNote"></p>
+      </div>
+    </div>
+
+    <p class="empty-state" id="loadingState">불러오는 중…</p>
+    <p class="empty-state hidden" id="errorState">가게를 찾을 수 없어요.<br /><a href="/places" style="color:var(--primary);">목록으로 돌아가기</a></p>
+  </div>
+
+<script>
+  const placeId = location.pathname.split('/places/')[1];
+
+  const TAGS = [
+    { id: 'korean', label: '한식' },
+    { id: 'chinese', label: '중식' },
+    { id: 'japanese', label: '일식' },
+    { id: 'western', label: '양식' },
+    { id: 'snack', label: '분식' },
+    { id: 'etc', label: '기타' },
+  ];
+  const tagLabel = (id) => (TAGS.find((t) => t.id === id) || { label: '기타' }).label;
+
+  const ORDER_TYPES = [
+    { id: 'dine_in', label: '🍽 매장에서' },
+    { id: 'delivery', label: '🛵 배달로' },
+  ];
+  const typeLabel = (id) => (ORDER_TYPES.find((t) => t.id === id) || { label: '' }).label;
+
+  const IDENTITY_KEY = 'coffee-bomb:identity';
+  function loadIdentity() {
+    try { return JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch { return null; }
+  }
+  let identity = loadIdentity();
+  if (!identity || !identity.deviceId) {
+    identity = { deviceId: crypto.randomUUID(), name: (identity && identity.name) || '' };
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
+  }
+
+  const content = document.getElementById('content');
+  const loadingState = document.getElementById('loadingState');
+  const errorState = document.getElementById('errorState');
+  const placeName = document.getElementById('placeName');
+  const headMeta = document.getElementById('headMeta');
+  const mapLink = document.getElementById('mapLink');
+  const tagEdit = document.getElementById('tagEdit');
+  const scoreBig = document.getElementById('scoreBig');
+  const scoreSub = document.getElementById('scoreSub');
+  const scoreRows = document.getElementById('scoreRows');
+  const rateArea = document.getElementById('rateArea');
+  const namePrompt = document.getElementById('namePrompt');
+  const nameInput = document.getElementById('nameInput');
+  const nameSaveBtn = document.getElementById('nameSaveBtn');
+  const reviewList = document.getElementById('reviewList');
+  const ratingOnlyNote = document.getElementById('ratingOnlyNote');
+
+  let place = null;
+  let reviews = [];
+  let myReviews = {}; // orderType -> review
+  let pendingRating = null; // { orderType, rating } held while the name is entered
+
+  async function load() {
+    try {
+      const res = await fetch('/api/places/' + placeId);
+      if (!res.ok) throw new Error('not found');
+      const data = await res.json();
+      place = data.place;
+      reviews = data.reviews || [];
+      myReviews = {};
+      reviews.forEach((r) => {
+        if (r.deviceId === identity.deviceId) myReviews[r.orderType] = r;
+      });
+      render();
+      loadingState.classList.add('hidden');
+      content.classList.remove('hidden');
+    } catch {
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+    }
+  }
+
+  function render() {
+    document.title = place.name + ' - 우리 팀 맛집';
+    placeName.textContent = place.name;
+
+    headMeta.innerHTML = '';
+    const tag = document.createElement('span');
+    tag.className = 'tag-badge';
+    tag.textContent = tagLabel(place.tag);
+    headMeta.appendChild(tag);
+    if (!place.ranked) {
+      const thin = document.createElement('span');
+      thin.className = 'thin-badge';
+      thin.textContent = '리뷰 부족';
+      headMeta.appendChild(thin);
+    }
+
+    // The kakaomap link is the only route to address, phone and hours — those are
+    // never stored locally, so this link has to stay prominent.
+    if (place.placeUrl) {
+      mapLink.href = place.placeUrl;
+      mapLink.classList.remove('hidden');
+    } else {
+      mapLink.classList.add('hidden');
+    }
+
+    renderTagEdit();
+    renderScores();
+    renderRateArea();
+    renderReviews();
+  }
+
+  function renderTagEdit() {
+    tagEdit.innerHTML = '';
+    TAGS.forEach((t) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'tag-chip' + (t.id === place.tag ? ' on' : '');
+      chip.textContent = t.label;
+      chip.addEventListener('click', () => changeTag(t.id));
+      tagEdit.appendChild(chip);
+    });
+  }
+
+  async function changeTag(tagId) {
+    if (tagId === place.tag) return;
+    try {
+      const res = await fetch('/api/places', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ placeId: place.id, name: place.name, placeUrl: place.placeUrl, tag: tagId }),
+      });
+      if (!res.ok) throw new Error('failed');
+      place.tag = tagId;
+      renderTagEdit();
+      headMeta.querySelector('.tag-badge').textContent = tagLabel(tagId);
+    } catch {
+      alert('종류를 바꾸지 못했어요.');
+    }
+  }
+
+  function renderScores() {
+    scoreBig.textContent = place.rating == null ? '–' : '★ ' + place.rating.toFixed(1);
+    scoreSub.textContent = place.reviewCount
+      ? '리뷰 ' + place.reviewCount + '개'
+      : '아직 평점이 없어요';
+
+    scoreRows.innerHTML = '';
+    ORDER_TYPES.forEach((t) => {
+      const bucket = t.id === 'dine_in' ? place.dineIn : place.delivery;
+      const row = document.createElement('div');
+      row.className = 'score-row' + (bucket.count ? '' : ' empty');
+      row.innerHTML =
+        '<span class="sr-label"></span><span class="sr-val"></span><span class="sr-cnt"></span>';
+      row.querySelector('.sr-label').textContent = t.label;
+      row.querySelector('.sr-val').textContent = bucket.count ? '★ ' + bucket.avg.toFixed(1) : '평가 없음';
+      row.querySelector('.sr-cnt').textContent = bucket.count ? '(' + bucket.count + ')' : '';
+      scoreRows.appendChild(row);
+    });
+  }
+
+  // Two star rows side by side: whichever row you tap decides both the order type
+  // and the score, so rating still costs a single tap.
+  function renderRateArea() {
+    rateArea.innerHTML = '';
+    ORDER_TYPES.forEach((t) => {
+      const mine = myReviews[t.id];
+      const block = document.createElement('div');
+      block.className = 'rate-block';
+
+      const head = document.createElement('div');
+      head.className = 'rate-head';
+      const label = document.createElement('span');
+      label.className = 'rate-label';
+      label.textContent = t.label;
+      head.appendChild(label);
+      if (mine) {
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'rate-clear';
+        clear.textContent = '평점 삭제';
+        clear.addEventListener('click', () => removeRating(t.id));
+        head.appendChild(clear);
+      }
+      block.appendChild(head);
+
+      const starsWrap = document.createElement('div');
+      starsWrap.className = 'rate-head';
+      const stars = document.createElement('div');
+      stars.className = 'stars';
+      for (let n = 1; n <= 5; n++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'star-btn' + (mine && n <= mine.rating ? ' on' : '');
+        btn.textContent = mine && n <= mine.rating ? '★' : '☆';
+        btn.setAttribute('aria-label', t.label + ' ' + n + '점');
+        btn.addEventListener('click', () => submitRating(t.id, n));
+        stars.appendChild(btn);
+      }
+      starsWrap.appendChild(stars);
+      if (mine) {
+        const val = document.createElement('span');
+        val.className = 'rate-value';
+        val.textContent = mine.rating + '점';
+        starsWrap.appendChild(val);
+      }
+      block.appendChild(starsWrap);
+
+      // The optional comment box only appears once a score exists — showing it up
+      // front makes an optional field feel required.
+      if (mine) {
+        const textRow = document.createElement('div');
+        textRow.className = 'text-row';
+        const ta = document.createElement('textarea');
+        ta.placeholder = '한마디 남기기 (선택)';
+        ta.maxLength = 300;
+        ta.value = mine.text || '';
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.textContent = '저장';
+        saveBtn.addEventListener('click', async () => {
+          saveBtn.disabled = true;
+          await submitRating(t.id, mine.rating, ta.value);
+          saveBtn.disabled = false;
+        });
+        textRow.append(ta, saveBtn);
+        block.appendChild(textRow);
+      }
+
+      rateArea.appendChild(block);
+    });
+  }
+
+  async function submitRating(orderType, rating, text) {
+    if (!identity.name) {
+      // Remember the tap so the score lands automatically once a name is saved.
+      pendingRating = { orderType, rating, text };
+      namePrompt.classList.remove('hidden');
+      nameInput.focus();
+      return;
+    }
+    try {
+      const body = {
+        deviceId: identity.deviceId,
+        authorName: identity.name,
+        orderType,
+        rating,
+      };
+      if (text !== undefined) body.text = text;
+      else if (myReviews[orderType]) body.text = myReviews[orderType].text || '';
+
+      const res = await fetch('/api/places/' + placeId + '/review', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('failed');
+      await load();
+    } catch {
+      alert('평점을 저장하지 못했어요. 다시 시도해주세요.');
+    }
+  }
+
+  async function removeRating(orderType) {
+    try {
+      const res = await fetch('/api/places/' + placeId + '/review', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ deviceId: identity.deviceId, orderType }),
+      });
+      if (!res.ok) throw new Error('failed');
+      await load();
+    } catch {
+      alert('평점을 삭제하지 못했어요.');
+    }
+  }
+
+  function saveName() {
+    const name = nameInput.value.trim();
+    if (!name) return;
+    identity.name = name;
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
+    namePrompt.classList.add('hidden');
+    if (pendingRating) {
+      const p = pendingRating;
+      pendingRating = null;
+      submitRating(p.orderType, p.rating, p.text);
+    }
+  }
+  nameSaveBtn.addEventListener('click', saveName);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveName(); }
+  });
+
+  function renderReviews() {
+    // Most reviews will be score-only, so listing them all would fill the page
+    // with blank rows. Text reviews are listed; the rest are counted.
+    const withText = reviews.filter((r) => r.text);
+    const scoreOnly = reviews.length - withText.length;
+
+    reviewList.innerHTML = '';
+    if (!withText.length) {
+      reviewList.innerHTML = '<p class="empty-state">아직 남겨진 한마디가 없어요.</p>';
+    } else {
+      withText.forEach((r) => {
+        const el = document.createElement('div');
+        el.className = 'review';
+        el.innerHTML =
+          '<div class="review-head">' +
+            '<span class="review-author"></span>' +
+            '<span class="review-type"></span>' +
+            '<span class="review-score"></span>' +
+          '</div>' +
+          '<div class="review-text"></div>';
+        el.querySelector('.review-author').textContent = r.authorName || '이름 없음';
+        el.querySelector('.review-type').textContent = typeLabel(r.orderType);
+        el.querySelector('.review-score').textContent = '★ ' + r.rating;
+        el.querySelector('.review-text').textContent = r.text;
+        reviewList.appendChild(el);
+      });
+    }
+
+    if (scoreOnly > 0) {
+      ratingOnlyNote.textContent = '그 외 평점만 남긴 ' + scoreOnly + '명';
+      ratingOnlyNote.classList.remove('hidden');
+    } else {
+      ratingOnlyNote.classList.add('hidden');
+    }
+  }
+
+  load();
+  window.addEventListener('pageshow', (event) => { if (event.persisted) load(); });
+</script>
+</body>
+</html>

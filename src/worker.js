@@ -1,6 +1,8 @@
 import listHtml from "../public/list.html";
 import roomHtml from "../public/room.html";
 import rankingHtml from "../public/ranking.html";
+import placesHtml from "../public/places.html";
+import placeHtml from "../public/place.html";
 
 //.gg
 
@@ -38,6 +40,8 @@ export default {
 
     if (pathname === "/") return html(listHtml);
     if (pathname === "/ranking") return html(rankingHtml);
+    if (pathname === "/places") return html(placesHtml);
+    if (/^\/places\/\d+$/.test(pathname)) return html(placeHtml);
     if (/^\/r\/[A-Za-z0-9]+$/.test(pathname)) return html(roomHtml);
 
     if (pathname === "/api/rooms" && request.method === "GET") {
@@ -62,6 +66,14 @@ export default {
       kakaoUrl.searchParams.set("query", q);
       kakaoUrl.searchParams.set("category_group_code", "FD6"); // 음식점만
       kakaoUrl.searchParams.set("size", "10");
+      // Centre on the office and sort by distance, so the nearest branch of a
+      // chain comes first instead of an unrelated one across the country.
+      if (env.OFFICE_LAT && env.OFFICE_LNG) {
+        kakaoUrl.searchParams.set("x", env.OFFICE_LNG);
+        kakaoUrl.searchParams.set("y", env.OFFICE_LAT);
+        kakaoUrl.searchParams.set("radius", env.OFFICE_RADIUS_M || "800");
+        kakaoUrl.searchParams.set("sort", "distance");
+      }
 
       const res = await fetch(kakaoUrl, {
         headers: { Authorization: `KakaoAK ${env.KAKAO_REST_KEY}` },
@@ -86,6 +98,7 @@ export default {
           category: d.category_name,
           address: d.road_address_name || d.address_name,
           placeUrl: d.place_url,
+          distance: d.distance ? Number(d.distance) : null, // metres from the office
         }))
         .filter((p) => matches(p.name) || matches(p.category));
       return json({ places });
