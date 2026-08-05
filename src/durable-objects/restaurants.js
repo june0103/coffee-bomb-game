@@ -190,7 +190,21 @@ export class Restaurants {
       const existing = await this.state.storage.get(reviewKey);
       if (!existing) return json({ error: "not_found" }, { status: 404 });
 
+      await this.state.storage.delete(reviewKey);
+
       const placeKey = this.placeKey(placeId);
+
+      // A place is registered implicitly by its first reviewer, so removing the
+      // last review has to undo that too — otherwise a mistaken registration
+      // leaves an empty place in the list that nobody can get rid of. Scanning
+      // the remaining review keys rather than trusting the counters keeps this
+      // from deleting a place that still has someone else's rating.
+      const remaining = await this.state.storage.list({ prefix: "review:" + placeId + ":" });
+      if (remaining.size === 0) {
+        await this.state.storage.delete(placeKey);
+        return json({ place: null, placeRemoved: true });
+      }
+
       const place = await this.state.storage.get(placeKey);
       if (place) {
         const bucket = place.buckets[orderType];
@@ -199,8 +213,7 @@ export class Restaurants {
         await this.state.storage.put(placeKey, place);
       }
 
-      await this.state.storage.delete(reviewKey);
-      return json({ place: place ? withStats(place) : null });
+      return json({ place: place ? withStats(place) : null, placeRemoved: false });
     }
 
     return new Response("not found", { status: 404 });
