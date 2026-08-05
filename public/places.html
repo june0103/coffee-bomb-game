@@ -373,7 +373,7 @@
         chip.type = 'button';
         chip.className = 'tag-chip';
         chip.textContent = t.label;
-        chip.addEventListener('click', () => registerPlace(p, t.id, chip));
+        chip.addEventListener('click', () => choosePlace(p, t.id));
         tags.appendChild(chip);
       });
 
@@ -382,27 +382,16 @@
     });
   }
 
-  async function registerPlace(place, tag, chip) {
-    chip.disabled = true;
-    try {
-      const res = await fetch('/api/places', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          placeId: place.id,
-          name: place.name,
-          placeUrl: place.placeUrl,
-          tag,
-          deviceId: identity.deviceId,
-          authorName: identity.name,
-        }),
-      });
-      if (!res.ok) throw new Error('failed');
-      location.href = '/places/' + place.id;
-    } catch {
-      chip.disabled = false;
-      alert('등록에 실패했어요. 다시 시도해주세요.');
-    }
+  // Picking a place does not register it — the detail page creates it together
+  // with the first rating, so a place never exists without a review. The choice
+  // is handed over through sessionStorage rather than the URL.
+  function choosePlace(place, tag) {
+    sessionStorage.setItem('goodgame:pending:' + place.id, JSON.stringify({
+      name: place.name,
+      placeUrl: place.placeUrl,
+      tag,
+    }));
+    location.href = '/places/' + place.id;
   }
 
   // ---- lists ----

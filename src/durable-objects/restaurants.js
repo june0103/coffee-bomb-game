@@ -136,8 +136,26 @@ export class Restaurants {
       }
 
       const placeKey = this.placeKey(placeId);
-      const place = await this.state.storage.get(placeKey);
-      if (!place) return json({ error: "not_found" }, { status: 404 });
+      let place = await this.state.storage.get(placeKey);
+
+      // A place comes into existence with its first rating, in this same DO
+      // invocation. Registering it in a separate request would leave an orphan
+      // whenever the follow-up rating never arrived — someone picking a place
+      // and then closing the tab was exactly how empty places appeared.
+      if (!place) {
+        const name = (body.name || "").toString().trim().slice(0, MAX_NAME_LEN);
+        if (!name) return json({ error: "place_info_required" }, { status: 400 });
+        place = {
+          id: placeId,
+          name,
+          placeUrl: (body.placeUrl || "").toString().slice(0, 200),
+          tag: TAGS.includes(body.tag) ? body.tag : "etc",
+          addedBy: deviceId,
+          addedByName: (body.authorName || "").toString().trim().slice(0, 12),
+          addedAt: Date.now(),
+          buckets: emptyBuckets(),
+        };
+      }
 
       const reviewKey = this.reviewKey(placeId, deviceId, orderType);
       const existing = await this.state.storage.get(reviewKey);

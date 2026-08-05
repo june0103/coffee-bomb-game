@@ -96,6 +96,11 @@
   }
   .map-link:active { background: var(--ring); }
   .map-note { margin: 8px 2px 0; font-size: 12px; color: var(--label-alternative); line-height: 17px; }
+  .pending-note {
+    margin: 12px 0 0; padding: 11px 13px; border-radius: 12px;
+    background: var(--status-cautionary-bg); color: var(--status-cautionary);
+    font-size: 13px; font-weight: 600; line-height: 19px;
+  }
 
   /* ---- score summary ---- */
   .score-total { display: flex; align-items: baseline; gap: 8px; }
@@ -190,6 +195,7 @@
         <div class="head-meta" id="headMeta"></div>
         <a class="map-link" id="mapLink" target="_blank" rel="noopener noreferrer">📍 카카오맵에서 보기</a>
         <p class="map-note">주소·전화번호·영업시간·사진은 카카오맵에서 확인하세요. 항상 최신 정보예요.</p>
+        <p class="pending-note hidden" id="pendingNote">아직 등록 전이에요. 별점을 남기면 우리 팀 맛집 목록에 올라갑니다.</p>
         <div class="tag-edit" id="tagEdit"></div>
       </div>
 
@@ -261,6 +267,7 @@
   const headMeta = document.getElementById('headMeta');
   const mapLink = document.getElementById('mapLink');
   const tagEdit = document.getElementById('tagEdit');
+  const pendingNote = document.getElementById('pendingNote');
   const scoreBig = document.getElementById('scoreBig');
   const scoreSub = document.getElementById('scoreSub');
   const scoreRows = document.getElementById('scoreRows');
@@ -275,11 +282,43 @@
   let reviews = [];
   let myReviews = {}; // orderType -> review
   let pendingRating = null; // { orderType, rating } held while the name is entered
+  let isPending = false; // chosen from search, not created until the first rating
+
+  const PENDING_KEY = 'goodgame:pending:' + placeId;
+  function loadPending() {
+    try { return JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); } catch { return null; }
+  }
 
   async function load() {
     try {
       const res = await fetch('/api/places/' + placeId);
+      if (res.status === 404) {
+        // Not registered yet. Render from what the search page handed over; the
+        // record is created server-side by the first rating.
+        const pending = loadPending();
+        if (!pending) throw new Error('not found');
+        isPending = true;
+        place = {
+          id: placeId,
+          name: pending.name,
+          placeUrl: pending.placeUrl,
+          tag: pending.tag,
+          dineIn: { count: 0, avg: null },
+          delivery: { count: 0, avg: null },
+          reviewCount: 0,
+          rating: null,
+          ranked: false,
+        };
+        reviews = [];
+        myReviews = {};
+        render();
+        loadingState.classList.add('hidden');
+        content.classList.remove('hidden');
+        return;
+      }
       if (!res.ok) throw new Error('not found');
+      isPending = false;
+      sessionStorage.removeItem(PENDING_KEY);
       const data = await res.json();
       place = data.place;
       reviews = data.reviews || [];
@@ -305,12 +344,13 @@
     tag.className = 'tag-badge';
     tag.textContent = tagLabel(place.tag);
     headMeta.appendChild(tag);
-    if (!place.ranked) {
+    if (!place.ranked && !isPending) {
       const thin = document.createElement('span');
       thin.className = 'thin-badge';
       thin.textContent = '리뷰 부족';
       headMeta.appendChild(thin);
     }
+    pendingNote.classList.toggle('hidden', !isPending);
 
     // The kakaomap link is the only route to address, phone and hours — those are
     // never stored locally, so this link has to stay prominent.
@@ -341,6 +381,16 @@
 
   async function changeTag(tagId) {
     if (tagId === place.tag) return;
+    // Before the first rating there is nothing on the server to update, and
+    // POSTing here would create the very orphan this flow avoids.
+    if (isPending) {
+      place.tag = tagId;
+      const pending = loadPending() || {};
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ ...pending, tag: tagId }));
+      renderTagEdit();
+      headMeta.querySelector('.tag-badge').textContent = tagLabel(tagId);
+      return;
+    }
     try {
       const res = await fetch('/api/places', {
         method: 'POST',
@@ -465,6 +515,14 @@
       };
       if (text !== undefined) body.text = text;
       else if (myReviews[orderType]) body.text = myReviews[orderType].text || '';
+
+      // First rating on a place picked from search: send what we know so the
+      // server can create the place and the review in one atomic step.
+      if (isPending) {
+        body.name = place.name;
+        body.placeUrl = place.placeUrl;
+        body.tag = place.tag;
+      }
 
       const res = await fetch('/api/places/' + placeId + '/review', {
         method: 'PUT',
