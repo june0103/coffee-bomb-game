@@ -18,6 +18,8 @@
     --line-solid: #e1e2e4;
     --line-solid-neutral: #eaebec;
     --status-cautionary: #ff9200;
+    --status-positive: #00bf40;
+    --ring: rgba(0, 102, 255, 0.08);
     --shadow-small: 0px 2px 4px -2px rgba(23, 23, 25, 0.06), 0px 4px 6px -1px rgba(23, 23, 25, 0.06);
   }
   @media (prefers-color-scheme: dark) {
@@ -33,6 +35,8 @@
       --line-solid: #37383c;
       --line-solid-neutral: #333438;
       --status-cautionary: #ffa938;
+      --status-positive: #1ed45a;
+      --ring: rgba(51, 133, 255, 0.14);
       --shadow-small: 0px 2px 4px -2px rgba(0, 0, 0, 0.35), 0px 4px 6px -1px rgba(0, 0, 0, 0.3);
     }
   }
@@ -81,6 +85,32 @@
   .rank-name { flex: 1; font-weight: 600; font-size: 15.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rank-count { font-weight: 700; font-size: 14px; color: var(--status-cautionary); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
+  /* ---- weekly report ---- */
+  .report-card {
+    background: var(--ring);
+    border: 1px solid var(--line-solid-neutral);
+    border-radius: 20px;
+    padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .report-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .report-eyebrow { font-size: 12.5px; font-weight: 700; color: var(--primary); }
+  .copy-btn {
+    border: 1px solid var(--line-solid); background: var(--bg-elevated); color: var(--label-normal);
+    border-radius: 10px; padding: 6px 12px; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; flex-shrink: 0; font-family: inherit;
+  }
+  .copy-btn:active { background: var(--bg-alt); }
+  .copy-btn.done { color: var(--status-positive); border-color: var(--status-positive); }
+  .report-text {
+    margin: 0; font-size: 14.5px; line-height: 23px; color: var(--label-neutral);
+    /* the writer emits one point per line, so the breaks have to survive */
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .report-meta { margin: 0; font-size: 11.5px; color: var(--label-alternative); }
+
+  .hidden { display: none !important; }
+
   .empty-state {
     text-align: center; color: var(--label-alternative); font-size: 14px; padding: 36px 16px;
   }
@@ -97,6 +127,15 @@
       <h1>💣 이주의 후원자</h1>
       <p class="range" id="rangeLabel">불러오는 중…</p>
     </header>
+    <section class="report-card hidden" id="reportCard">
+      <div class="report-head">
+        <span class="report-eyebrow">📋 이번 주 요약</span>
+        <button class="copy-btn" id="copyBtn" type="button">복사</button>
+      </div>
+      <p class="report-text" id="reportText"></p>
+      <p class="report-meta" id="reportMeta"></p>
+    </section>
+
     <div class="card">
       <div id="rankList">
         <p class="loading-state">불러오는 중…</p>
@@ -107,10 +146,50 @@
 <script>
   const MEDALS = ['🥇', '🥈', '🥉'];
 
+  let copyPayload = '';
+
+  function formatGeneratedAt(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function renderReport(data) {
+    const card = document.getElementById('reportCard');
+    // No report yet this week — the block stays out of the way entirely rather
+    // than showing an empty placeholder.
+    if (!data.report || !data.report.text) {
+      card.classList.add('hidden');
+      return;
+    }
+    document.getElementById('reportText').textContent = data.report.text;
+    document.getElementById('reportMeta').textContent =
+      formatGeneratedAt(data.report.generatedAt) + ' 생성';
+    // Slack loses the surrounding context, so the week is copied along with it.
+    copyPayload = '📋 GoodGame 주간 요약 (' + data.rangeLabel + ')\n\n' + data.report.text;
+    card.classList.remove('hidden');
+  }
+
+  const copyBtn = document.getElementById('copyBtn');
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(copyPayload);
+      copyBtn.textContent = '복사됨!';
+      copyBtn.classList.add('done');
+      setTimeout(() => {
+        copyBtn.textContent = '복사';
+        copyBtn.classList.remove('done');
+      }, 1500);
+    } catch {
+      // clipboard unavailable; the text is on screen for manual selection
+    }
+  });
+
   function renderEntries(data) {
     const rangeLabel = document.getElementById('rangeLabel');
     const rankList = document.getElementById('rankList');
     rangeLabel.textContent = '이번 주 (' + data.rangeLabel + ') 기준';
+    renderReport(data);
 
     if (!data.entries || data.entries.length === 0) {
       rankList.innerHTML = '<p class="empty-state">이번 주엔 아직 터진 사람이 없어요 🎉</p>';
