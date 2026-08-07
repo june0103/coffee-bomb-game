@@ -525,6 +525,9 @@ export class GameRoom {
       body: JSON.stringify({
         deviceId: loser.deviceId || loser.id,
         name: loser.name,
+        // which game it was — without this the weekly tally can only say how
+        // often someone lost, not what they kept losing at
+        gameType: this.data.gameType,
         ts: Date.now(),
       }),
     });

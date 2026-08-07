@@ -49,6 +49,7 @@ export class Leaderboard {
         this.events.push({
           deviceId: body.deviceId.toString().slice(0, 64),
           name: body.name.toString().slice(0, 12),
+          gameType: body.gameType ? body.gameType.toString().slice(0, 20) : null,
           ts: typeof body.ts === 'number' ? body.ts : Date.now(),
         });
         await this.persist();
@@ -62,11 +63,16 @@ export class Leaderboard {
       const start = weekStart(now);
       const end = start + WEEK_MS;
       const tally = new Map();
+      const byGame = {};
       for (const e of this.events) {
         if (e.ts < start || e.ts >= end) continue;
-        const entry = tally.get(e.deviceId) || { name: e.name, count: 0 };
+        const entry = tally.get(e.deviceId) || { name: e.name, count: 0, games: {} };
         entry.count += 1;
         entry.name = e.name;
+        // events recorded before gameType was captured have none
+        const game = e.gameType || 'unknown';
+        entry.games[game] = (entry.games[game] || 0) + 1;
+        byGame[game] = (byGame[game] || 0) + 1;
         tally.set(e.deviceId, entry);
       }
       const entries = Array.from(tally.values()).sort((a, b) => b.count - a.count).slice(0, 20);
@@ -74,6 +80,7 @@ export class Leaderboard {
       return new Response(JSON.stringify({
         entries,
         totalExplosions,
+        byGame,
         rangeLabel: formatKstDate(start) + ' ~ ' + formatKstDate(end - 24 * 60 * 60 * 1000),
       }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
     }
