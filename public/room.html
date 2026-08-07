@@ -265,9 +265,11 @@
     50% { box-shadow: 0 0 0 6px rgba(255, 146, 0, 0); }
   }
 
-  /* ---- pirate roulette (해적 룰렛) ---- */
+  /* ---- 러시안 룰렛 ---- */
+  /* auto-fill keeps six-ish columns on a phone but adds more on wider screens,
+     so a 60-slot round with a big group still fits without a huge scroll. */
   .pirate-barrel {
-    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px;
     width: 100%; margin-top: 4px;
   }
   .slot {
@@ -403,7 +405,7 @@
         <div class="p-list" id="pirateParticipantList"></div>
       </div>
       <div class="card stage-card">
-        <div style="font-size:46px;" id="pirateIcon">🏴‍☠️</div>
+        <div style="font-size:46px;" id="pirateIcon">🎯</div>
         <p class="stage-headline" id="pirateHeadline">-</p>
         <p class="stage-sub" id="pirateSub"></p>
         <p class="pirate-odds" id="pirateOdds"></p>
@@ -492,7 +494,7 @@
     reaction: { icon: '⚡', name: '반응속도 게임' },
     timesense: { icon: '⏱️', name: '시간 감각 게임' },
     stopwatch: { icon: '🫘', name: '콩콩팥팥' },
-    pirate: { icon: '🏴‍☠️', name: '해적 룰렛' },
+    pirate: { icon: '🎯', name: '러시안 룰렛' },
   };
 
   const pageEl = document.getElementById('page');
@@ -914,20 +916,20 @@
 
     if (myTurn) {
       pirateHeadline.textContent = '당신 차례예요!';
-      pirateSub.textContent = '구멍을 하나 골라 칼을 꽂으세요.';
+      pirateSub.textContent = '한 칸을 골라보세요.';
     } else {
       const holder = state.participants.find((p) => p.id === state.currentHolderId);
       pirateHeadline.textContent = holder ? holder.name + '님이 고르는 중…' : '진행 중…';
-      pirateSub.textContent = '누가 해적을 튀어나오게 할까요?';
+      pirateSub.textContent = '누가 꽝을 뽑을까요?';
     }
 
     // The tension is the shrinking denominator, so say it out loud.
     pirateOdds.innerHTML = '';
     if (remaining > 0) {
-      pirateOdds.append('남은 구멍 ' + remaining + '개 중 ');
+      pirateOdds.append('남은 ' + remaining + '칸 중 ');
       const strong = document.createElement('strong');
-      strong.textContent = '1개';
-      pirateOdds.append(strong, '가 함정');
+      strong.textContent = '1칸';
+      pirateOdds.append(strong, '이 꽝');
     }
   }
 
@@ -1141,9 +1143,9 @@
         renderReactionTimes(state);
       } else if (state.gameType === 'pirate') {
         const trap = state.pirate && state.pirate.trapSlot != null ? state.pirate.trapSlot + 1 : null;
-        resultEyebrow.textContent = '해적이 튀어나왔다! 🏴‍☠️';
+        resultEyebrow.textContent = '꽝! 🎯';
         resultSub.textContent = trap
-          ? trap + '번 구멍이 함정이었어요. 오늘 커피는 이 분이 쏩니다 ☕'
+          ? trap + '번이 꽝이었어요. 오늘 커피는 이 분이 쏩니다 ☕'
           : '오늘 커피는 이 분이 쏩니다 ☕';
         resultTimes.classList.add('hidden');
       } else {

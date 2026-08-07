@@ -10,7 +10,21 @@ const TS_MIN_SECONDS = 10;
 const TS_MAX_SECONDS = 30;
 const TS_TIMEOUT_EXTRA_MS = 10000;
 
-const PIRATE_SLOTS = 24; // holes around the barrel, as on the physical toy
+// 러시안 룰렛. The gameType id stays "pirate" from when the game was named
+// 해적 룰렛 — renaming it would strand rooms already holding the old value.
+//
+// The dud is equally likely to be anywhere, so a round lasts about half the
+// slots. Scaling by headcount keeps that at roughly four turns each instead of
+// ending in one lap once a few more people join. Rounded to a multiple of six
+// so the grid has no ragged last row, and capped so it stays on one screen.
+const RR_SLOTS_PER_PLAYER = 8;
+const RR_MIN_SLOTS = 18;
+const RR_MAX_SLOTS = 60;
+
+function rouletteSlotCount(playerCount) {
+  const raw = Math.max(RR_MIN_SLOTS, playerCount * RR_SLOTS_PER_PLAYER);
+  return Math.min(RR_MAX_SLOTS, Math.ceil(raw / 6) * 6);
+}
 
 const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch", "pirate"];
 
@@ -40,8 +54,9 @@ export class GameRoom {
       roundStartAt: null, // timesense
       answers: [], // timesense: { id, diffSeconds, missed } | stopwatch: { id, digit1, digit2, score }
       swProgress: {}, // stopwatch: participantId -> { startAt, digit1, digit2 }
-      trapSlot: null, // pirate: the rigged hole — never leaves the server until it is hit
-      stabbedSlots: [], // pirate: { slot, id } in the order they were stabbed
+      trapSlot: null, // roulette: the dud — never leaves the server until it is hit
+      stabbedSlots: [], // roulette: { slot, id } in the order they were picked
+      slotCount: 0, // roulette: scales with the headcount at round start
     };
     if (!this.data.swProgress) this.data.swProgress = {};
     if (!this.data.stabbedSlots) this.data.stabbedSlots = [];
@@ -213,7 +228,7 @@ export class GameRoom {
       if (msg.type === "stab" && this.data.gameType === "pirate" && this.data.phase === "playing") {
         if (this.data.order[this.data.currentIndex] !== participantId) return;
         const slot = Number(msg.slot);
-        if (!Number.isInteger(slot) || slot < 0 || slot >= PIRATE_SLOTS) return;
+        if (!Number.isInteger(slot) || slot < 0 || slot >= this.data.slotCount) return;
         if (this.data.stabbedSlots.some((s) => s.slot === slot)) return;
 
         this.data.stabbedSlots.push({ slot, id: participantId });
@@ -323,6 +338,7 @@ export class GameRoom {
     this.data.swProgress = {};
     this.data.trapSlot = null;
     this.data.stabbedSlots = [];
+    this.data.slotCount = 0;
     this.data.participants.forEach((p) => {
       p.reactionMs = null;
       p.falseStart = false;
@@ -476,7 +492,8 @@ export class GameRoom {
   async startPirateRound() {
     this.data.order = this.data.participants.filter((p) => p.connected).map((p) => p.id);
     this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
-    this.data.trapSlot = Math.floor(Math.random() * PIRATE_SLOTS);
+    this.data.slotCount = rouletteSlotCount(this.data.order.length);
+    this.data.trapSlot = Math.floor(Math.random() * this.data.slotCount);
     this.data.stabbedSlots = [];
     this.data.loserId = null;
     this.data.phase = "playing";
@@ -519,12 +536,12 @@ export class GameRoom {
         ? this.data.order[this.data.currentIndex]
         : null;
 
-    // The rigged hole is the whole game — it stays on the server until it is hit,
+    // The dud is the whole game — it stays on the server until it is hit,
     // otherwise anyone reading the socket frames could just avoid it.
     const isPirate = this.data.gameType === "pirate";
     const pirate = isPirate
       ? {
-          totalSlots: PIRATE_SLOTS,
+          totalSlots: this.data.slotCount,
           stabbedSlots: this.data.stabbedSlots,
           trapSlot: this.data.phase === "exploded" ? this.data.trapSlot : null,
         }
