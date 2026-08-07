@@ -4,6 +4,8 @@ import rankingHtml from "../public/ranking.html";
 import placesHtml from "../public/places.html";
 import placeHtml from "../public/place.html";
 
+import { generateWeeklyReport } from "./weeklyReport.js";
+
 //.gg
 
 export { GameRoom } from "./durable-objects/gameRoom.js";
@@ -52,6 +54,18 @@ export default {
     if (pathname === "/api/leaderboard" && request.method === "GET") {
       const lb = env.LEADERBOARD.get(env.LEADERBOARD.idFromName("global"));
       return lb.fetch("https://leaderboard/current");
+    }
+
+    // Manual rerun for when the weekly cron misses a run. Unauthenticated,
+    // which is fine while the report is generated locally — add a guard before
+    // wiring this to a model call so it can't be used to burn the daily quota.
+    if (pathname === "/api/report/regenerate" && request.method === "POST") {
+      try {
+        const { text } = await generateWeeklyReport(env);
+        return json({ ok: true, text });
+      } catch (err) {
+        return json({ ok: false, error: String(err) }, { status: 500 });
+      }
     }
 
     // Restaurant search, proxied so the Kakao key stays server-side.
@@ -155,5 +169,15 @@ export default {
     }
 
     return new Response("Not found", { status: 404 });
+  },
+
+  // Weekly report batch. A failure here must never surface to visitors, so it
+  // is logged and swallowed — the ranking page simply shows no report.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      generateWeeklyReport(env).catch((err) => {
+        console.error("weekly report failed", err);
+      }),
+    );
   },
 };

@@ -58,6 +58,19 @@ export class Leaderboard {
       return new Response('ok');
     }
 
+    // The report is keyed by week, and this object already owns the KST week
+    // boundary, so it stores the text rather than the caller recomputing it.
+    if (url.pathname === '/report' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const text = (body.text || '').toString().slice(0, 4000);
+      if (!text) return new Response('empty', { status: 400 });
+      await this.state.storage.put('report:' + weekStart(Date.now()), {
+        text,
+        generatedAt: Date.now(),
+      });
+      return new Response('ok');
+    }
+
     if (url.pathname === '/current') {
       const now = Date.now();
       const start = weekStart(now);
@@ -77,10 +90,12 @@ export class Leaderboard {
       }
       const entries = Array.from(tally.values()).sort((a, b) => b.count - a.count).slice(0, 20);
       const totalExplosions = entries.reduce((sum, e) => sum + e.count, 0);
+      const report = (await this.state.storage.get('report:' + start)) || null;
       return new Response(JSON.stringify({
         entries,
         totalExplosions,
         byGame,
+        report,
         rangeLabel: formatKstDate(start) + ' ~ ' + formatKstDate(end - 24 * 60 * 60 * 1000),
       }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
     }

@@ -8,6 +8,11 @@ type = "Text"
 globs = ["**/*.html"]
 fallthrough = true
 
+# Weekly report batch. Cron is UTC — 08:00 Friday UTC is 17:00 Friday KST,
+# so the report lands as the week wraps up rather than on Monday morning.
+[triggers]
+crons = ["0 8 * * 5"]
+
 # Restaurant search is centred on the office so branch names don't get mixed up
 # (searching "김밥천국" nationwide returns 마포, 울산, 송파 side by side).
 # 서울 송파구 백제고분로37길 22
