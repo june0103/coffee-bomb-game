@@ -10,7 +10,9 @@ const TS_MIN_SECONDS = 10;
 const TS_MAX_SECONDS = 30;
 const TS_TIMEOUT_EXTRA_MS = 10000;
 
-const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch"];
+const PIRATE_SLOTS = 24; // holes around the barrel, as on the physical toy
+
+const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch", "pirate"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -38,8 +40,11 @@ export class GameRoom {
       roundStartAt: null, // timesense
       answers: [], // timesense: { id, diffSeconds, missed } | stopwatch: { id, digit1, digit2, score }
       swProgress: {}, // stopwatch: participantId -> { startAt, digit1, digit2 }
+      trapSlot: null, // pirate: the rigged hole — never leaves the server until it is hit
+      stabbedSlots: [], // pirate: { slot, id } in the order they were stabbed
     };
     if (!this.data.swProgress) this.data.swProgress = {};
+    if (!this.data.stabbedSlots) this.data.stabbedSlots = [];
   }
 
   async persist() {
@@ -87,10 +92,11 @@ export class GameRoom {
         this.data.phase = "closed";
         await this.state.storage.deleteAlarm();
       } else if (
-        this.data.gameType === "bomb" &&
+        (this.data.gameType === "bomb" || this.data.gameType === "pirate") &&
         this.data.phase === "playing" &&
         this.data.order[this.data.currentIndex] === participantId
       ) {
+        // don't let the round stall on someone who just dropped out mid-turn
         this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
       } else if (
         (this.data.gameType === "timesense" || this.data.gameType === "stopwatch") &&
@@ -165,6 +171,9 @@ export class GameRoom {
         } else if (this.data.gameType === "stopwatch") {
           if (connectedCount < 2) return;
           await this.startStopwatchRound();
+        } else if (this.data.gameType === "pirate") {
+          if (connectedCount < 2) return;
+          await this.startPirateRound();
         }
         return;
       }
@@ -201,6 +210,30 @@ export class GameRoom {
         return;
       }
 
+      if (msg.type === "stab" && this.data.gameType === "pirate" && this.data.phase === "playing") {
+        if (this.data.order[this.data.currentIndex] !== participantId) return;
+        const slot = Number(msg.slot);
+        if (!Number.isInteger(slot) || slot < 0 || slot >= PIRATE_SLOTS) return;
+        if (this.data.stabbedSlots.some((s) => s.slot === slot)) return;
+
+        this.data.stabbedSlots.push({ slot, id: participantId });
+
+        if (slot === this.data.trapSlot) {
+          this.data.phase = "exploded";
+          this.data.loserId = participantId;
+          await this.persist();
+          await this.syncDirectory();
+          await this.reportLoss();
+          this.broadcast();
+          return;
+        }
+
+        this.data.currentIndex = (this.data.currentIndex + 1) % this.data.order.length;
+        await this.persist();
+        this.broadcast();
+        return;
+      }
+
       if (msg.type === "restart" && participantId === this.data.hostId) {
         if (this.data.gameType === "bomb" && this.data.phase === "exploded") {
           this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
@@ -213,6 +246,8 @@ export class GameRoom {
           await this.startTimesenseRound();
         } else if (this.data.gameType === "stopwatch" && this.data.phase === "result") {
           await this.startStopwatchRound();
+        } else if (this.data.gameType === "pirate" && this.data.phase === "exploded") {
+          await this.startPirateRound();
         }
         return;
       }
@@ -286,6 +321,8 @@ export class GameRoom {
     this.data.roundStartAt = null;
     this.data.answers = [];
     this.data.swProgress = {};
+    this.data.trapSlot = null;
+    this.data.stabbedSlots = [];
     this.data.participants.forEach((p) => {
       p.reactionMs = null;
       p.falseStart = false;
@@ -434,6 +471,20 @@ export class GameRoom {
     this.broadcast();
   }
 
+  // ---------- pirate ----------
+
+  async startPirateRound() {
+    this.data.order = this.data.participants.filter((p) => p.connected).map((p) => p.id);
+    this.data.currentIndex = Math.floor(Math.random() * this.data.order.length);
+    this.data.trapSlot = Math.floor(Math.random() * PIRATE_SLOTS);
+    this.data.stabbedSlots = [];
+    this.data.loserId = null;
+    this.data.phase = "playing";
+    await this.persist();
+    await this.syncDirectory();
+    this.broadcast();
+  }
+
   // ---------- shared ----------
 
   async alarm() {
@@ -442,9 +493,10 @@ export class GameRoom {
       await this.alarmReaction();
     } else if (this.data.gameType === "timesense") {
       await this.alarmTimesense();
-    } else {
+    } else if (this.data.gameType === "bomb") {
       await this.alarmBomb();
     }
+    // stopwatch and pirate never set an alarm; a leftover one must not explode them
   }
 
   async reportLoss() {
@@ -463,7 +515,20 @@ export class GameRoom {
 
   broadcast() {
     const holderId =
-      this.data.gameType === "bomb" && this.data.phase === "playing" ? this.data.order[this.data.currentIndex] : null;
+      (this.data.gameType === "bomb" || this.data.gameType === "pirate") && this.data.phase === "playing"
+        ? this.data.order[this.data.currentIndex]
+        : null;
+
+    // The rigged hole is the whole game — it stays on the server until it is hit,
+    // otherwise anyone reading the socket frames could just avoid it.
+    const isPirate = this.data.gameType === "pirate";
+    const pirate = isPirate
+      ? {
+          totalSlots: PIRATE_SLOTS,
+          stabbedSlots: this.data.stabbedSlots,
+          trapSlot: this.data.phase === "exploded" ? this.data.trapSlot : null,
+        }
+      : null;
 
     for (const [ws, pid] of this.sockets) {
       const p = this.data.participants.find((pp) => pp.id === pid);
@@ -487,10 +552,12 @@ export class GameRoom {
         targetSeconds: this.data.targetSeconds,
         roundStartAt: this.data.roundStartAt,
         answers: this.data.answers,
+        pirate,
         you: {
           id: pid,
           isHost: pid === this.data.hostId,
           canPass: this.data.gameType === "bomb" && this.data.phase === "playing" && holderId === pid,
+          canStab: isPirate && this.data.phase === "playing" && holderId === pid,
           canReact,
           answered: this.data.answers.some((a) => a.id === pid),
           sw:

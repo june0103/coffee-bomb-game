@@ -265,6 +265,28 @@
     50% { box-shadow: 0 0 0 6px rgba(255, 146, 0, 0); }
   }
 
+  /* ---- pirate roulette (해적 룰렛) ---- */
+  .pirate-barrel {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+    width: 100%; margin-top: 4px;
+  }
+  .slot {
+    aspect-ratio: 1; border-radius: 12px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-alternative);
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .slot:disabled { cursor: default; }
+  .slot.stabbed { background: var(--ring); border-color: var(--primary); font-size: 19px; }
+  .slot.trap { background: var(--status-negative-bg); border-color: var(--status-negative); font-size: 19px; }
+  .slot.pickable:active { transform: scale(0.9); background: var(--ring); }
+  .slot.idle { opacity: 0.55; }
+  .pirate-odds {
+    font-size: 13px; color: var(--label-alternative); margin: 0;
+  }
+  .pirate-odds strong { color: var(--status-negative); font-weight: 700; }
+
   /* ---- explosion ---- */
   .boom-flash {
     position: fixed; inset: 0; background: var(--status-negative); opacity: 0; pointer-events: none; z-index: 40;
@@ -374,6 +396,21 @@
       </button>
     </section>
 
+    <!-- playing: pirate roulette -->
+    <section id="pirateScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card">
+        <p class="section-label" id="pirateParticipantLabel">참가자</p>
+        <div class="p-list" id="pirateParticipantList"></div>
+      </div>
+      <div class="card stage-card">
+        <div style="font-size:46px;" id="pirateIcon">🏴‍☠️</div>
+        <p class="stage-headline" id="pirateHeadline">-</p>
+        <p class="stage-sub" id="pirateSub"></p>
+        <p class="pirate-odds" id="pirateOdds"></p>
+        <div class="pirate-barrel" id="pirateBarrel"></div>
+      </div>
+    </section>
+
     <!-- playing: time sense -->
     <section id="tsGameScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
       <div class="card stage-card">
@@ -455,6 +492,7 @@
     reaction: { icon: '⚡', name: '반응속도 게임' },
     timesense: { icon: '⏱️', name: '시간 감각 게임' },
     stopwatch: { icon: '🫘', name: '콩콩팥팥' },
+    pirate: { icon: '🏴‍☠️', name: '해적 룰렛' },
   };
 
   const pageEl = document.getElementById('page');
@@ -501,6 +539,14 @@
   const stageSub = document.getElementById('stageSub');
   const passBtn = document.getElementById('passBtn');
   const keyHint = document.getElementById('keyHint');
+
+  const pirateScreen = document.getElementById('pirateScreen');
+  const pirateParticipantLabel = document.getElementById('pirateParticipantLabel');
+  const pirateParticipantList = document.getElementById('pirateParticipantList');
+  const pirateHeadline = document.getElementById('pirateHeadline');
+  const pirateSub = document.getElementById('pirateSub');
+  const pirateOdds = document.getElementById('pirateOdds');
+  const pirateBarrel = document.getElementById('pirateBarrel');
 
   const reactionScreen = document.getElementById('reactionScreen');
   const reactionCard = document.getElementById('reactionCard');
@@ -649,7 +695,7 @@
     });
   }
 
-  const GAME_ORDER = ['bomb', 'reaction', 'timesense', 'stopwatch'];
+  const GAME_ORDER = ['bomb', 'reaction', 'timesense', 'stopwatch', 'pirate'];
   function renderGamePicker(state) {
     gamePicker.innerHTML = '';
     GAME_ORDER.forEach((id) => {
@@ -844,6 +890,47 @@
     });
   }
 
+  function renderPirate(state) {
+    const info = state.pirate || { totalSlots: 0, stabbedSlots: [], trapSlot: null };
+    const stabbed = new Map(info.stabbedSlots.map((s) => [s.slot, s.id]));
+    const myTurn = !!state.you.canStab;
+    const remaining = info.totalSlots - stabbed.size;
+
+    pirateBarrel.innerHTML = '';
+    for (let i = 0; i < info.totalSlots; i++) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isStabbed = stabbed.has(i);
+      const isTrap = info.trapSlot != null && info.trapSlot === i;
+      btn.className = 'slot' +
+        (isTrap ? ' trap' : isStabbed ? ' stabbed' : '') +
+        (!isStabbed && myTurn ? ' pickable' : '') +
+        (!isStabbed && !myTurn ? ' idle' : '');
+      btn.textContent = isTrap ? '💥' : isStabbed ? '🗡' : (i + 1);
+      btn.disabled = isStabbed || !myTurn;
+      if (!isStabbed && myTurn) btn.addEventListener('click', () => send({ type: 'stab', slot: i }));
+      pirateBarrel.appendChild(btn);
+    }
+
+    if (myTurn) {
+      pirateHeadline.textContent = '당신 차례예요!';
+      pirateSub.textContent = '구멍을 하나 골라 칼을 꽂으세요.';
+    } else {
+      const holder = state.participants.find((p) => p.id === state.currentHolderId);
+      pirateHeadline.textContent = holder ? holder.name + '님이 고르는 중…' : '진행 중…';
+      pirateSub.textContent = '누가 해적을 튀어나오게 할까요?';
+    }
+
+    // The tension is the shrinking denominator, so say it out loud.
+    pirateOdds.innerHTML = '';
+    if (remaining > 0) {
+      pirateOdds.append('남은 구멍 ' + remaining + '개 중 ');
+      const strong = document.createElement('strong');
+      strong.textContent = '1개';
+      pirateOdds.append(strong, '가 함정');
+    }
+  }
+
   function spawnConfetti() {
     if (reduceMotion) return;
     const pieces = ['☕', '💥', '✨', '🔥'];
@@ -930,6 +1017,7 @@
     nameScreen.classList.toggle('hidden', !!myId);
     lobbyScreen.classList.add('hidden');
     gameScreen.classList.add('hidden');
+    pirateScreen.classList.add('hidden');
     reactionScreen.classList.add('hidden');
     tsGameScreen.classList.add('hidden');
     resultScreen.classList.add('hidden');
@@ -955,7 +1043,9 @@
       renderParticipantRows(participantList, connected, state.hostId, null);
       if (state.you.isHost) {
         startBtn.classList.remove('hidden');
-        startBtn.disabled = connected.length < (state.gameType === 'timesense' ? 1 : 2);
+        // every game type needs two players server-side; keeping a lower bar here
+        // just meant the button looked enabled and the start was silently dropped
+        startBtn.disabled = connected.length < 2;
         waitNote.classList.add('hidden');
         gameChangeCard.classList.remove('hidden');
         renderGamePicker(state);
@@ -964,6 +1054,11 @@
         waitNote.classList.remove('hidden');
         gameChangeCard.classList.add('hidden');
       }
+    } else if (state.gameType === 'pirate' && state.phase === 'playing') {
+      pirateScreen.classList.remove('hidden');
+      pirateParticipantLabel.textContent = '참가자 (' + connected.length + '명)';
+      renderParticipantRows(pirateParticipantList, connected, state.hostId, state.currentHolderId);
+      renderPirate(state);
     } else if (state.gameType === 'timesense' && state.phase === 'playing') {
       tsGameScreen.classList.remove('hidden');
       tickTimesense(state);
@@ -1044,6 +1139,13 @@
         resultSub.textContent = '오늘 커피는 이 분이 쏩니다 ☕';
         resultTimes.classList.remove('hidden');
         renderReactionTimes(state);
+      } else if (state.gameType === 'pirate') {
+        const trap = state.pirate && state.pirate.trapSlot != null ? state.pirate.trapSlot + 1 : null;
+        resultEyebrow.textContent = '해적이 튀어나왔다! 🏴‍☠️';
+        resultSub.textContent = trap
+          ? trap + '번 구멍이 함정이었어요. 오늘 커피는 이 분이 쏩니다 ☕'
+          : '오늘 커피는 이 분이 쏩니다 ☕';
+        resultTimes.classList.add('hidden');
       } else {
         resultEyebrow.textContent = '펑! 터졌습니다';
         resultSub.textContent = '오늘 커피는 이 분이 쏩니다 ☕';
