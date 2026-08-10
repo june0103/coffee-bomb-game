@@ -15,6 +15,8 @@ export { Restaurants } from "./durable-objects/restaurants.js";
 
 const ROOM_ID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid mix-ups
 
+const REPORT_COOLDOWN_MS = 5 * 60 * 1000;
+
 function randomRoomId() {
   const bytes = crypto.getRandomValues(new Uint8Array(5));
   let id = "";
@@ -56,10 +58,18 @@ export default {
       return lb.fetch("https://leaderboard/current");
     }
 
-    // Manual rerun for when the weekly cron misses a run. Unauthenticated,
-    // which is fine while the report is generated locally — add a guard before
-    // wiring this to a model call so it can't be used to burn the daily quota.
+    // Manual rerun for when the weekly cron misses a run. There is no login to
+    // authenticate against, so a cooldown stands in for one — enough to stop
+    // repeated hits from eating the daily Workers AI allowance, while still
+    // allowing the occasional recovery rerun.
     if (pathname === "/api/report/regenerate" && request.method === "POST") {
+      const lb = env.LEADERBOARD.get(env.LEADERBOARD.idFromName("global"));
+      const current = await (await lb.fetch("https://leaderboard/current")).json();
+      const lastRun = current.report ? current.report.generatedAt : 0;
+      const waitMs = REPORT_COOLDOWN_MS - (Date.now() - lastRun);
+      if (waitMs > 0) {
+        return json({ ok: false, error: "cooldown", retryAfterSec: Math.ceil(waitMs / 1000) }, { status: 429 });
+      }
       try {
         const { text } = await generateWeeklyReport(env);
         return json({ ok: true, text });
