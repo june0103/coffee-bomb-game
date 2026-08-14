@@ -265,6 +265,32 @@
     50% { box-shadow: 0 0 0 6px rgba(255, 146, 0, 0); }
   }
 
+  /* ---- sequence game (숫자 순서) ---- */
+  .seq-timer { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 4px 0; }
+  .seq-penalty { font-size: 13px; color: var(--status-negative); font-weight: 600; min-height: 18px; }
+  .seq-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    width: 100%; margin-top: 6px;
+  }
+  .seq-btn {
+    aspect-ratio: 1; border-radius: 14px; border: 1px solid var(--line-solid);
+    background: var(--bg-alt); color: var(--label-normal); font-family: inherit;
+    font-size: 22px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .seq-btn:active { transform: scale(0.92); background: var(--ring); }
+  .seq-btn:disabled { cursor: default; }
+  .seq-btn.done { background: var(--ring); border-color: var(--primary); color: var(--primary); }
+  .seq-btn.wrong { animation: seqShake 0.25s ease-in-out; background: var(--status-negative-bg); border-color: var(--status-negative); }
+  @keyframes seqShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .seq-diff { font-weight: 700; font-size: 13.5px; color: var(--label-alternative); flex-shrink: 0; }
+  .seq-rank-1 .seq-diff { color: var(--primary); }
+
   /* ---- 러시안 룰렛 ---- */
   /* auto-fill keeps six-ish columns on a phone but adds more on wider screens,
      so a 60-slot round with a big group still fits without a huge scroll. */
@@ -471,6 +497,29 @@
       <p class="wait-note hidden" id="swResultWaitNote">호스트가 다음 라운드를 시작하길 기다리는 중…</p>
     </section>
 
+    <!-- playing: sequence (숫자 순서) -->
+    <section id="seqGameScreen" class="hidden" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card stage-card">
+        <p class="stage-sub">1부터 10까지 순서대로 눌러요</p>
+        <p class="seq-timer" id="seqTimer">0.0초</p>
+        <p class="seq-penalty hidden" id="seqPenalty"></p>
+        <div class="seq-grid" id="seqGrid"></div>
+        <p class="wait-note hidden" id="seqWaitNote">완료! 다른 사람을 기다리는 중…</p>
+      </div>
+    </section>
+
+    <!-- result: sequence (숫자 순서) -->
+    <section id="seqResultScreen" class="hidden card stage-card">
+      <span class="result-eyebrow" style="color: var(--primary);">결과 발표</span>
+      <p class="result-sub">가장 오래 걸린 사람이 오늘의 주인공!</p>
+      <div class="p-list" id="seqRankList" style="width:100%; margin-top:10px;"></div>
+      <div class="result-actions" id="seqResultActions">
+        <button id="seqAgainBtn" type="button">다시하기</button>
+        <button id="seqLobbyBtn" type="button">대기실로 돌아가기</button>
+      </div>
+      <p class="wait-note hidden" id="seqResultWaitNote">호스트가 다음 라운드를 시작하길 기다리는 중…</p>
+    </section>
+
     <!-- host left, room closed -->
     <section id="closedScreen" class="hidden card stage-card">
       <span class="result-eyebrow" style="color: var(--label-alternative);">방 종료</span>
@@ -495,6 +544,7 @@
     timesense: { icon: '⏱️', name: '시간 감각 게임' },
     stopwatch: { icon: '🫘', name: '콩콩팥팥' },
     pirate: { icon: '🎯', name: '러시안 룰렛' },
+    sequence: { icon: '🔢', name: '숫자 순서' },
   };
 
   const pageEl = document.getElementById('page');
@@ -579,6 +629,18 @@
   const swResultWaitNote = document.getElementById('swResultWaitNote');
   const swAgainBtn = document.getElementById('swAgainBtn');
   const swLobbyBtn = document.getElementById('swLobbyBtn');
+
+  const seqGameScreen = document.getElementById('seqGameScreen');
+  const seqTimer = document.getElementById('seqTimer');
+  const seqPenalty = document.getElementById('seqPenalty');
+  const seqGrid = document.getElementById('seqGrid');
+  const seqWaitNote = document.getElementById('seqWaitNote');
+  const seqResultScreen = document.getElementById('seqResultScreen');
+  const seqRankList = document.getElementById('seqRankList');
+  const seqResultActions = document.getElementById('seqResultActions');
+  const seqResultWaitNote = document.getElementById('seqResultWaitNote');
+  const seqAgainBtn = document.getElementById('seqAgainBtn');
+  const seqLobbyBtn = document.getElementById('seqLobbyBtn');
 
   const resultScreen = document.getElementById('resultScreen');
   const resultEyebrow = document.getElementById('resultEyebrow');
@@ -697,7 +759,7 @@
     });
   }
 
-  const GAME_ORDER = ['bomb', 'reaction', 'timesense', 'stopwatch', 'pirate'];
+  const GAME_ORDER = ['bomb', 'reaction', 'timesense', 'stopwatch', 'pirate', 'sequence'];
   function renderGamePicker(state) {
     gamePicker.innerHTML = '';
     GAME_ORDER.forEach((id) => {
@@ -726,6 +788,8 @@
   swStartStopBtn.addEventListener('click', () => send({ type: lastSwRunning ? 'swStop' : 'swStart' }));
   swAgainBtn.addEventListener('click', () => send({ type: 'restart' }));
   swLobbyBtn.addEventListener('click', () => send({ type: 'backToLobby' }));
+  seqAgainBtn.addEventListener('click', () => send({ type: 'restart' }));
+  seqLobbyBtn.addEventListener('click', () => send({ type: 'backToLobby' }));
 
   let leaving = false;
   function leaveRoom() {
@@ -892,6 +956,96 @@
     });
   }
 
+  let seqTimerHandle = null;
+  let seqLayout = null;
+  let seqLayoutRoundStartAt = null;
+  function stopSeqTimerLoop() { clearInterval(seqTimerHandle); seqTimerHandle = null; }
+
+  function shuffledSeqLayout() {
+    const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // 3 here mirrors the server's SEQ_PENALTY_MS — display only, the real score is server-computed.
+  function seqElapsedDisplay(state) {
+    const wrongClicks = (state.you.seq && state.you.seq.wrongClicks) || 0;
+    const baseSeconds = state.roundStartAt ? (Date.now() - state.roundStartAt) / 1000 : 0;
+    return baseSeconds + wrongClicks * 3;
+  }
+
+  function tickSeqTimer(state) {
+    seqTimer.textContent = seqElapsedDisplay(state).toFixed(1) + '초';
+  }
+
+  function renderSeqGame(state) {
+    if (seqLayoutRoundStartAt !== state.roundStartAt) {
+      seqLayout = shuffledSeqLayout();
+      seqLayoutRoundStartAt = state.roundStartAt;
+      seqPenalty.classList.add('hidden');
+    }
+    const seq = state.you.seq || {};
+    const nextExpected = seq.nextExpected;
+    const done = !!seq.done;
+
+    seqGrid.innerHTML = '';
+    seqLayout.forEach((num) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isDone = nextExpected != null && num < nextExpected;
+      btn.className = 'seq-btn' + (isDone ? ' done' : '');
+      btn.textContent = num;
+      btn.disabled = isDone || done;
+      btn.addEventListener('click', () => {
+        if (num !== nextExpected) {
+          btn.classList.remove('wrong');
+          void btn.offsetWidth;
+          btn.classList.add('wrong');
+          seqPenalty.textContent = '틀렸어요! +3초';
+          seqPenalty.classList.remove('hidden');
+        }
+        send({ type: 'seqClick', number: num });
+      });
+      seqGrid.appendChild(btn);
+    });
+
+    if (done) {
+      const mine = state.answers.find((a) => a.id === state.you.id);
+      const finalSeconds = mine && !mine.missed ? mine.elapsedSeconds : seqElapsedDisplay(state);
+      seqTimer.textContent = finalSeconds.toFixed(1) + '초';
+      seqWaitNote.classList.remove('hidden');
+    } else {
+      seqWaitNote.classList.add('hidden');
+    }
+  }
+
+  function renderSeqResults(state) {
+    seqRankList.innerHTML = '';
+    const rows = state.answers.map((a) => {
+      const p = state.participants.find((pp) => pp.id === a.id);
+      return { name: p ? p.name : '알 수 없음', elapsedSeconds: a.elapsedSeconds, wrongClicks: a.wrongClicks, missed: a.missed };
+    });
+    rows.sort((a, b) => {
+      if (a.missed && b.missed) return 0;
+      if (a.missed) return 1;
+      if (b.missed) return -1;
+      return a.elapsedSeconds - b.elapsedSeconds;
+    });
+    rows.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'p-row' + (i === 0 ? ' seq-rank-1' : '');
+      row.innerHTML = '<span class="p-name"></span><span class="seq-diff"></span>';
+      row.querySelector('.p-name').textContent = (i + 1) + '. ' + r.name;
+      row.querySelector('.seq-diff').textContent = r.missed
+        ? 'Miss'
+        : r.elapsedSeconds.toFixed(1) + '초' + (r.wrongClicks ? ' (오답 ' + r.wrongClicks + ')' : '');
+      seqRankList.appendChild(row);
+    });
+  }
+
   function renderPirate(state) {
     const info = state.pirate || { totalSlots: 0, stabbedSlots: [], trapSlot: null };
     const stabbed = new Map(info.stabbedSlots.map((s) => [s.slot, s.id]));
@@ -1026,10 +1180,13 @@
     tsResultScreen.classList.add('hidden');
     swGameScreen.classList.add('hidden');
     swResultScreen.classList.add('hidden');
+    seqGameScreen.classList.add('hidden');
+    seqResultScreen.classList.add('hidden');
     closedScreen.classList.add('hidden');
     stopFlicker();
     stopTsTimer();
     stopSwTimerLoop();
+    stopSeqTimerLoop();
 
     const REVEAL_PHASES = ['exploded', 'finished'];
     if (REVEAL_PHASES.includes(state.phase) && !REVEAL_PHASES.includes(lastPhase)) triggerBoom();
@@ -1088,6 +1245,22 @@
       } else {
         swResultActions.classList.add('hidden');
         swResultWaitNote.classList.remove('hidden');
+      }
+    } else if (state.gameType === 'sequence' && state.phase === 'playing') {
+      seqGameScreen.classList.remove('hidden');
+      renderSeqGame(state);
+      if (!(state.you.seq && state.you.seq.done)) {
+        seqTimerHandle = setInterval(() => tickSeqTimer(state), 100);
+      }
+    } else if (state.gameType === 'sequence' && state.phase === 'result') {
+      seqResultScreen.classList.remove('hidden');
+      renderSeqResults(state);
+      if (state.you.isHost) {
+        seqResultActions.classList.remove('hidden');
+        seqResultWaitNote.classList.add('hidden');
+      } else {
+        seqResultActions.classList.add('hidden');
+        seqResultWaitNote.classList.remove('hidden');
       }
     } else if (state.gameType === 'reaction' && (state.phase === 'armed' || state.phase === 'green')) {
       reactionScreen.classList.remove('hidden');
