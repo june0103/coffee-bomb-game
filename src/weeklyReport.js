@@ -11,6 +11,7 @@ const GAME_LABELS = {
   timesense: "시간 감각 게임",
   stopwatch: "콩콩팥팥",
   pirate: "러시안 룰렛",
+  sequence: "숫자 순서",
   unknown: "기록 이전",
 };
 

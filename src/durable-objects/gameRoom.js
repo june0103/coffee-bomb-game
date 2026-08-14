@@ -10,6 +10,10 @@ const TS_MIN_SECONDS = 10;
 const TS_MAX_SECONDS = 30;
 const TS_TIMEOUT_EXTRA_MS = 10000;
 
+const SEQ_TOTAL = 10;
+const SEQ_PENALTY_MS = 3000; // added per wrong-number click, on top of real elapsed time
+const SEQ_TIMEOUT_MS = 60000; // safety net so a stalled player can't hold the round open forever
+
 // 러시안 룰렛. The gameType id stays "pirate" from when the game was named
 // 해적 룰렛 — renaming it would strand rooms already holding the old value.
 //
@@ -26,7 +30,7 @@ function rouletteSlotCount(playerCount) {
   return Math.min(RR_MAX_SLOTS, Math.ceil(raw / 6) * 6);
 }
 
-const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch", "pirate"];
+const GAME_TYPES = ["bomb", "reaction", "timesense", "stopwatch", "pirate", "sequence"];
 
 export class GameRoom {
   constructor(state, env) {
@@ -52,13 +56,15 @@ export class GameRoom {
       loserId: null,
       targetSeconds: null, // timesense
       roundStartAt: null, // timesense
-      answers: [], // timesense: { id, diffSeconds, missed } | stopwatch: { id, digit1, digit2, score }
+      answers: [], // timesense: { id, diffSeconds, missed } | stopwatch: { id, digit1, digit2, score } | sequence: { id, elapsedSeconds, wrongClicks, missed }
       swProgress: {}, // stopwatch: participantId -> { startAt, digit1, digit2 }
+      seqProgress: {}, // sequence: participantId -> { nextExpected, wrongClicks }
       trapSlot: null, // roulette: the dud — never leaves the server until it is hit
       stabbedSlots: [], // roulette: { slot, id } in the order they were picked
       slotCount: 0, // roulette: scales with the headcount at round start
     };
     if (!this.data.swProgress) this.data.swProgress = {};
+    if (!this.data.seqProgress) this.data.seqProgress = {};
     if (!this.data.stabbedSlots) this.data.stabbedSlots = [];
   }
 
@@ -120,6 +126,13 @@ export class GameRoom {
         if (this.allConnectedAnswered()) {
           this.data.phase = "result";
           await this.state.storage.deleteAlarm();
+        }
+      } else if (this.data.gameType === "sequence" && this.data.phase === "playing") {
+        if (this.allConnectedAnswered()) {
+          this.data.phase = "result";
+          this.computeSequenceLoser();
+          await this.state.storage.deleteAlarm();
+          await this.reportLoss();
         }
       }
 
@@ -189,6 +202,9 @@ export class GameRoom {
         } else if (this.data.gameType === "pirate") {
           if (connectedCount < 2) return;
           await this.startPirateRound();
+        } else if (this.data.gameType === "sequence") {
+          if (connectedCount < 2) return;
+          await this.startSequenceRound();
         }
         return;
       }
@@ -218,6 +234,35 @@ export class GameRoom {
         if (this.allConnectedAnswered()) {
           this.data.phase = "result";
           await this.state.storage.deleteAlarm();
+        }
+        await this.persist();
+        await this.syncDirectory();
+        this.broadcast();
+        return;
+      }
+
+      if (msg.type === "seqClick" && this.data.gameType === "sequence" && this.data.phase === "playing") {
+        if (this.data.answers.some((a) => a.id === participantId)) return;
+        const progress = this.data.seqProgress[participantId];
+        if (!progress) return;
+        const number = Number(msg.number);
+        if (!Number.isInteger(number) || number < 1 || number > SEQ_TOTAL) return;
+
+        if (number === progress.nextExpected) {
+          progress.nextExpected += 1;
+          if (progress.nextExpected > SEQ_TOTAL) {
+            const elapsedSeconds =
+              (Date.now() - this.data.roundStartAt) / 1000 + progress.wrongClicks * (SEQ_PENALTY_MS / 1000);
+            this.data.answers.push({ id: participantId, elapsedSeconds, wrongClicks: progress.wrongClicks, missed: false });
+            if (this.allConnectedAnswered()) {
+              this.data.phase = "result";
+              this.computeSequenceLoser();
+              await this.state.storage.deleteAlarm();
+              await this.reportLoss();
+            }
+          }
+        } else {
+          progress.wrongClicks += 1;
         }
         await this.persist();
         await this.syncDirectory();
@@ -263,6 +308,8 @@ export class GameRoom {
           await this.startStopwatchRound();
         } else if (this.data.gameType === "pirate" && this.data.phase === "exploded") {
           await this.startPirateRound();
+        } else if (this.data.gameType === "sequence" && this.data.phase === "result") {
+          await this.startSequenceRound();
         }
         return;
       }
@@ -336,6 +383,7 @@ export class GameRoom {
     this.data.roundStartAt = null;
     this.data.answers = [];
     this.data.swProgress = {};
+    this.data.seqProgress = {};
     this.data.trapSlot = null;
     this.data.stabbedSlots = [];
     this.data.slotCount = 0;
@@ -487,6 +535,57 @@ export class GameRoom {
     this.broadcast();
   }
 
+  // ---------- sequence ----------
+
+  async startSequenceRound() {
+    this.data.phase = "playing";
+    this.data.roundStartAt = Date.now();
+    this.data.answers = [];
+    this.data.seqProgress = {};
+    this.data.participants.forEach((p) => {
+      if (p.connected) this.data.seqProgress[p.id] = { nextExpected: 1, wrongClicks: 0 };
+    });
+    await this.state.storage.setAlarm(this.data.roundStartAt + SEQ_TIMEOUT_MS);
+    await this.persist();
+    await this.syncDirectory();
+    this.broadcast();
+  }
+
+  computeSequenceLoser() {
+    let worstId = null;
+    let worstSeconds = -Infinity;
+    for (const a of this.data.answers) {
+      const seconds = a.missed ? Infinity : a.elapsedSeconds;
+      if (seconds > worstSeconds) {
+        worstSeconds = seconds;
+        worstId = a.id;
+      }
+    }
+    this.data.loserId = worstId;
+  }
+
+  async alarmSequence() {
+    if (this.data.phase !== "playing") return;
+    const answered = new Set(this.data.answers.map((a) => a.id));
+    for (const p of this.data.participants) {
+      if (p.connected && !answered.has(p.id)) {
+        const progress = this.data.seqProgress[p.id];
+        this.data.answers.push({
+          id: p.id,
+          elapsedSeconds: null,
+          wrongClicks: progress ? progress.wrongClicks : 0,
+          missed: true,
+        });
+      }
+    }
+    this.data.phase = "result";
+    this.computeSequenceLoser();
+    await this.persist();
+    await this.syncDirectory();
+    await this.reportLoss();
+    this.broadcast();
+  }
+
   // ---------- pirate ----------
 
   async startPirateRound() {
@@ -512,6 +611,8 @@ export class GameRoom {
       await this.alarmTimesense();
     } else if (this.data.gameType === "bomb") {
       await this.alarmBomb();
+    } else if (this.data.gameType === "sequence") {
+      await this.alarmSequence();
     }
     // stopwatch and pirate never set an alarm; a leftover one must not explode them
   }
@@ -559,6 +660,7 @@ export class GameRoom {
         !!p &&
         p.reactionMs == null;
       const swProgress = this.data.swProgress[pid];
+      const seqProgress = this.data.seqProgress[pid];
 
       const payload = {
         type: "state",
@@ -586,6 +688,14 @@ export class GameRoom {
                   running: !!(swProgress && swProgress.startAt),
                   digit1: swProgress ? swProgress.digit1 : null,
                   digit2: swProgress ? swProgress.digit2 : null,
+                  done: this.data.answers.some((a) => a.id === pid),
+                }
+              : null,
+          seq:
+            this.data.gameType === "sequence"
+              ? {
+                  nextExpected: seqProgress ? seqProgress.nextExpected : null,
+                  wrongClicks: seqProgress ? seqProgress.wrongClicks : 0,
                   done: this.data.answers.some((a) => a.id === pid),
                 }
               : null,
