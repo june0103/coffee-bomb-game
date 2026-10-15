@@ -1,7 +1,16 @@
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const PRUNE_AFTER_MS = 60 * 24 * 60 * 60 * 1000; // keep ~60 days of history
-const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const PRUNE_AFTER_MS = 60 * DAY_MS; // keep ~60 days of history
+const PRUNE_INTERVAL_MS = DAY_MS;
+const MAX_RANGE_DAYS = 60; // nothing older than the prune horizon survives
+const DEFAULT_RANGE_DAYS = 7;
+
+function json(data) {
+  return new Response(JSON.stringify(data), {
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}
 
 function weekStart(ts) {
   const shifted = new Date(ts + KST_OFFSET_MS);
@@ -37,6 +46,30 @@ export class Leaderboard {
   async scheduleAlarm() {
     const existing = await this.state.storage.getAlarm();
     if (existing == null) await this.state.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
+  }
+
+  // Every finished game writes exactly one loss, so these counts double as how
+  // often each game was actually played.
+  tally(start, end) {
+    const byPerson = new Map();
+    const byGame = {};
+    for (const e of this.events) {
+      if (e.ts < start || e.ts >= end) continue;
+      const entry = byPerson.get(e.deviceId) || { name: e.name, count: 0, games: {} };
+      entry.count += 1;
+      entry.name = e.name;
+      // events recorded before gameType was captured have none
+      const game = e.gameType || 'unknown';
+      entry.games[game] = (entry.games[game] || 0) + 1;
+      byGame[game] = (byGame[game] || 0) + 1;
+      byPerson.set(e.deviceId, entry);
+    }
+    const entries = Array.from(byPerson.values()).sort((a, b) => b.count - a.count).slice(0, 20);
+    return {
+      entries,
+      totalExplosions: entries.reduce((sum, e) => sum + e.count, 0),
+      byGame,
+    };
   }
 
   async fetch(request) {
@@ -75,29 +108,31 @@ export class Leaderboard {
       const now = Date.now();
       const start = weekStart(now);
       const end = start + WEEK_MS;
-      const tally = new Map();
-      const byGame = {};
-      for (const e of this.events) {
-        if (e.ts < start || e.ts >= end) continue;
-        const entry = tally.get(e.deviceId) || { name: e.name, count: 0, games: {} };
-        entry.count += 1;
-        entry.name = e.name;
-        // events recorded before gameType was captured have none
-        const game = e.gameType || 'unknown';
-        entry.games[game] = (entry.games[game] || 0) + 1;
-        byGame[game] = (byGame[game] || 0) + 1;
-        tally.set(e.deviceId, entry);
-      }
-      const entries = Array.from(tally.values()).sort((a, b) => b.count - a.count).slice(0, 20);
-      const totalExplosions = entries.reduce((sum, e) => sum + e.count, 0);
       const report = (await this.state.storage.get('report:' + start)) || null;
-      return new Response(JSON.stringify({
-        entries,
-        totalExplosions,
-        byGame,
+      return json({
+        ...this.tally(start, end),
         report,
-        rangeLabel: formatKstDate(start) + ' ~ ' + formatKstDate(end - 24 * 60 * 60 * 1000),
-      }), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+        rangeLabel: formatKstDate(start) + ' ~ ' + formatKstDate(end - DAY_MS),
+      });
+    }
+
+    // Arbitrary trailing window, for questions the weekly view can't answer —
+    // a single week is often only a handful of games. Capped at the prune
+    // horizon since nothing older than that survives anyway.
+    if (url.pathname === '/range') {
+      // An absent param reads as null, and Number(null) is 0 — without the
+      // truthiness check that silently becomes a one day window.
+      const raw = url.searchParams.get('days');
+      const parsed = Math.floor(Number(raw));
+      const asked = raw && Number.isFinite(parsed) ? parsed : DEFAULT_RANGE_DAYS;
+      const days = Math.min(MAX_RANGE_DAYS, Math.max(1, asked));
+      const end = Date.now();
+      const start = end - days * DAY_MS;
+      return json({
+        ...this.tally(start, end + 1),
+        days,
+        rangeLabel: formatKstDate(start) + ' ~ ' + formatKstDate(end),
+      });
     }
 
     return new Response('not found', { status: 404 });

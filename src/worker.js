@@ -55,6 +55,10 @@ export default {
 
     if (pathname === "/api/leaderboard" && request.method === "GET") {
       const lb = env.LEADERBOARD.get(env.LEADERBOARD.idFromName("global"));
+      // ?days=N widens the window past the current week; without it the
+      // response is unchanged, so the ranking page keeps its weekly view.
+      const days = url.searchParams.get("days");
+      if (days) return lb.fetch("https://leaderboard/range?days=" + encodeURIComponent(days));
       return lb.fetch("https://leaderboard/current");
     }
 
